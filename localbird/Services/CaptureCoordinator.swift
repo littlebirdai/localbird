@@ -35,9 +35,16 @@ class CaptureCoordinator: ObservableObject {
     // MARK: - Configuration
 
     func configure(settings: AppSettings) {
+        NSLog("[Localbird] Configuring with settings...")
+        NSLog("[Localbird] Gemini API key: %@", settings.geminiAPIKey.isEmpty ? "(empty)" : "(set, \(settings.geminiAPIKey.count) chars)")
+        NSLog("[Localbird] Active vision provider: %@", settings.activeVisionProvider)
+
         // Configure LLM providers
         if !settings.geminiAPIKey.isEmpty {
+            NSLog("[Localbird] Configuring Gemini provider")
             llmService.configure(provider: .gemini, apiKey: settings.geminiAPIKey)
+        } else {
+            NSLog("[Localbird] Gemini API key is empty, skipping")
         }
         if !settings.claudeAPIKey.isEmpty {
             llmService.configure(provider: .claude, apiKey: settings.claudeAPIKey)
@@ -49,10 +56,12 @@ class CaptureCoordinator: ObservableObject {
         // Set active providers
         if let visionProvider = LLMProviderType(rawValue: settings.activeVisionProvider) {
             llmService.activeVisionProvider = visionProvider
+            NSLog("[Localbird] Set active vision provider to: %@", visionProvider.rawValue)
         }
 
         // Configure capture interval
         screenCaptureService.setCaptureInterval(settings.captureInterval)
+        NSLog("[Localbird] Configuration complete")
     }
 
     // MARK: - Capture Control
@@ -60,17 +69,22 @@ class CaptureCoordinator: ObservableObject {
     func startCapture() async {
         guard !isRunning else { return }
 
+        NSLog("[Localbird] Starting capture...")
+
         // Ensure Qdrant collection exists
         do {
             try await qdrantClient.ensureCollection()
+            NSLog("[Localbird] Qdrant collection ready")
         } catch {
             lastError = "Failed to initialize vector DB: \(error.localizedDescription)"
+            NSLog("[Localbird] Qdrant error: %@", error.localizedDescription)
             return
         }
 
         await screenCaptureService.startCapture()
         isRunning = true
         lastError = nil
+        NSLog("[Localbird] Capture started successfully")
     }
 
     func stopCapture() {
@@ -91,6 +105,7 @@ class CaptureCoordinator: ObservableObject {
 
     private func setupCallbacks() {
         screenCaptureService.onFrameCaptured = { [weak self] imageData, timestamp in
+            NSLog("[Localbird] Frame captured callback triggered, %d bytes", imageData.count)
             Task { @MainActor in
                 await self?.processFrame(imageData: imageData, timestamp: timestamp)
             }
@@ -98,21 +113,28 @@ class CaptureCoordinator: ObservableObject {
     }
 
     private func processFrame(imageData: Data, timestamp: Date) async {
+        NSLog("[Localbird] Processing frame, size: %d bytes", imageData.count)
+
         do {
             // 1. Capture accessibility snapshot
             let accessibilitySnapshot = accessibilityService.captureSnapshot()
+            NSLog("[Localbird] Got accessibility snapshot")
 
             // 2. Analyze with LLM
+            NSLog("[Localbird] Calling LLM for image analysis...")
             let analysis = try await llmService.analyzeImage(
                 imageData: imageData,
                 prompt: buildAnalysisPrompt(accessibility: accessibilitySnapshot)
             )
+            NSLog("[Localbird] LLM analysis complete: %@", analysis.summary)
 
             // 3. Create searchable text for embedding
             let searchableText = buildSearchableText(analysis: analysis, accessibility: accessibilitySnapshot)
 
             // 4. Generate embedding
+            NSLog("[Localbird] Generating embedding...")
             let embedding = try await llmService.generateEmbedding(text: searchableText)
+            NSLog("[Localbird] Embedding generated, size: %d", embedding.count)
 
             // 5. Create frame object
             var frame = CapturedFrame(
@@ -127,18 +149,20 @@ class CaptureCoordinator: ObservableObject {
             saveImageToDisk(frame: &frame)
 
             // 7. Store in vector DB
+            NSLog("[Localbird] Storing in Qdrant...")
             try await qdrantClient.upsertFrame(frame)
+            NSLog("[Localbird] Stored in Qdrant successfully")
 
             // Update stats
             processedFrames += 1
             lastProcessedTime = timestamp
             lastError = nil
 
-            print("Processed frame: \(analysis.summary)")
+            NSLog("[Localbird] Frame processed successfully: %@", analysis.summary)
 
         } catch {
             lastError = error.localizedDescription
-            print("Frame processing error: \(error)")
+            NSLog("[Localbird] Frame processing error: %@", error.localizedDescription)
         }
     }
 

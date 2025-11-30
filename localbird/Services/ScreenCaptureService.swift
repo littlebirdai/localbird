@@ -26,16 +26,25 @@ class ScreenCaptureService: NSObject, ObservableObject {
     }
 
     func startCapture() async {
-        guard !isCapturing else { return }
+        guard !isCapturing else {
+            NSLog("[ScreenCapture] Already capturing, skipping")
+            return
+        }
+
+        NSLog("[ScreenCapture] Starting capture...")
 
         do {
             // Check for screen recording permission
             let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+            NSLog("[ScreenCapture] Got shareable content, displays: %d", content.displays.count)
 
             guard let display = content.displays.first else {
                 captureError = "No display found"
+                NSLog("[ScreenCapture] No display found!")
                 return
             }
+
+            NSLog("[ScreenCapture] Display: %dx%d", Int(display.width), Int(display.height))
 
             let filter = SCContentFilter(display: display, excludingWindows: [])
             let config = SCStreamConfiguration()
@@ -52,12 +61,13 @@ class ScreenCaptureService: NSObject, ObservableObject {
             isCapturing = true
             captureError = nil
 
+            NSLog("[ScreenCapture] Stream started, starting timer with interval: %f", captureInterval)
             // Start periodic capture timer
             startCaptureTimer()
 
         } catch {
             captureError = "Failed to start capture: \(error.localizedDescription)"
-            print("Screen capture error: \(error)")
+            NSLog("[ScreenCapture] Error: %@", error.localizedDescription)
         }
     }
 
@@ -81,19 +91,30 @@ class ScreenCaptureService: NSObject, ObservableObject {
     }
 
     private func startCaptureTimer() {
+        NSLog("[ScreenCapture] Setting up timer...")
         captureTimer?.invalidate()
         captureTimer = Timer.scheduledTimer(withTimeInterval: captureInterval, repeats: true) { [weak self] _ in
+            NSLog("[ScreenCapture] Timer fired!")
             Task { @MainActor in
                 await self?.captureFrame()
             }
         }
+        // Fire immediately too
+        NSLog("[ScreenCapture] Timer created, firing immediately...")
+        Task {
+            await captureFrame()
+        }
     }
 
     private func captureFrame() async {
+        NSLog("[ScreenCapture] captureFrame() called")
         do {
             let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
 
-            guard let display = content.displays.first else { return }
+            guard let display = content.displays.first else {
+                NSLog("[ScreenCapture] No display in captureFrame")
+                return
+            }
 
             let filter = SCContentFilter(display: display, excludingWindows: [])
             let config = SCStreamConfiguration()
@@ -101,19 +122,29 @@ class ScreenCaptureService: NSObject, ObservableObject {
             config.height = Int(display.height)
             config.pixelFormat = kCVPixelFormatType_32BGRA
 
+            NSLog("[ScreenCapture] Capturing screenshot...")
             let image = try await SCScreenshotManager.captureImage(
                 contentFilter: filter,
                 configuration: config
             )
+            NSLog("[ScreenCapture] Got image: %dx%d", image.width, image.height)
 
             if let imageData = imageToData(image) {
+                NSLog("[ScreenCapture] Converted to JPEG: %d bytes", imageData.count)
                 let timestamp = Date()
                 lastCaptureTime = timestamp
-                onFrameCaptured?(imageData, timestamp)
+                if let callback = onFrameCaptured {
+                    NSLog("[ScreenCapture] Calling callback...")
+                    callback(imageData, timestamp)
+                } else {
+                    NSLog("[ScreenCapture] WARNING: No callback set!")
+                }
+            } else {
+                NSLog("[ScreenCapture] Failed to convert image to data")
             }
 
         } catch {
-            print("Frame capture error: \(error)")
+            NSLog("[ScreenCapture] captureFrame error: %@", error.localizedDescription)
         }
     }
 
