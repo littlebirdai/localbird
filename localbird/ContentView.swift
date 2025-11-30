@@ -2,29 +2,49 @@
 //  ContentView.swift
 //  localbird
 //
-//  Status view shown from menu bar (placeholder for future chat interface)
+//  Status view and search interface
 //
 
 import SwiftUI
 
 struct ContentView: View {
     @ObservedObject var coordinator: CaptureCoordinator
+    @State private var searchQuery = ""
+    @State private var showingSearch = false
 
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 0) {
             // Header
             HStack {
                 Image(systemName: "bird.fill")
-                    .font(.title)
+                    .font(.title2)
                 Text("Localbird")
-                    .font(.title2.bold())
+                    .font(.headline)
+                Spacer()
+                Button(action: { showingSearch.toggle() }) {
+                    Image(systemName: showingSearch ? "xmark.circle.fill" : "magnifyingglass")
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
             }
-            .padding(.top)
+            .padding(.horizontal)
+            .padding(.vertical, 10)
 
             Divider()
 
+            if showingSearch {
+                searchView
+            } else {
+                statusView
+            }
+        }
+        .frame(width: 320, height: showingSearch ? 400 : 200)
+    }
+
+    private var statusView: some View {
+        VStack(spacing: 12) {
             // Status
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 8) {
                 StatusRow(
                     label: "Status",
                     value: coordinator.isRunning ? "Capturing" : "Stopped",
@@ -32,7 +52,7 @@ struct ContentView: View {
                 )
 
                 StatusRow(
-                    label: "Frames Processed",
+                    label: "Frames",
                     value: "\(coordinator.processedFrames)"
                 )
 
@@ -45,7 +65,7 @@ struct ContentView: View {
 
                 if let error = coordinator.lastError {
                     StatusRow(
-                        label: "Last Error",
+                        label: "Error",
                         value: error,
                         color: .red
                     )
@@ -53,10 +73,10 @@ struct ContentView: View {
             }
             .padding(.horizontal)
 
-            Divider()
+            Spacer()
 
             // Quick Actions
-            HStack(spacing: 12) {
+            HStack(spacing: 8) {
                 Button(coordinator.isRunning ? "Stop" : "Start") {
                     if coordinator.isRunning {
                         coordinator.stopCapture()
@@ -75,10 +95,138 @@ struct ContentView: View {
                     NSApp.activate(ignoringOtherApps: true)
                 }
                 .buttonStyle(.bordered)
+
+                Button("Quit") {
+                    NSApplication.shared.terminate(nil)
+                }
+                .buttonStyle(.bordered)
             }
             .padding(.bottom)
         }
-        .frame(width: 280)
+        .padding(.top)
+    }
+
+    private var searchView: some View {
+        VStack(spacing: 0) {
+            // Search field
+            HStack {
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(.secondary)
+                TextField("Search your screen history...", text: $searchQuery)
+                    .textFieldStyle(.plain)
+                    .onSubmit {
+                        Task {
+                            coordinator.configure(settings: AppSettings.fromUserDefaults())
+                            await coordinator.searchService.search(query: searchQuery)
+                        }
+                    }
+                if coordinator.searchService.isSearching {
+                    ProgressView()
+                        .scaleEffect(0.7)
+                }
+            }
+            .padding(10)
+            .background(Color(nsColor: .controlBackgroundColor))
+
+            Divider()
+
+            // Results
+            if coordinator.searchService.results.isEmpty {
+                VStack(spacing: 8) {
+                    Spacer()
+                    if coordinator.searchService.isSearching {
+                        Text("Searching...")
+                            .foregroundColor(.secondary)
+                    } else if !searchQuery.isEmpty {
+                        Image(systemName: "doc.text.magnifyingglass")
+                            .font(.largeTitle)
+                            .foregroundColor(.secondary)
+                        Text("No results found")
+                            .foregroundColor(.secondary)
+                    } else {
+                        Image(systemName: "magnifyingglass")
+                            .font(.largeTitle)
+                            .foregroundColor(.secondary)
+                        Text("Enter a search query")
+                            .foregroundColor(.secondary)
+                        Text("e.g., \"working on code\", \"reading email\"")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                }
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 1) {
+                        ForEach(coordinator.searchService.results) { result in
+                            SearchResultRow(result: result, searchService: coordinator.searchService)
+                        }
+                    }
+                }
+            }
+
+            if let error = coordinator.searchService.error {
+                Text(error)
+                    .font(.caption)
+                    .foregroundColor(.red)
+                    .padding(8)
+            }
+        }
+    }
+}
+
+struct SearchResultRow: View {
+    let result: SearchResult
+    let searchService: SearchService
+    @State private var isHovering = false
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            // Thumbnail
+            if let imagePath = searchService.imagePath(for: result),
+               let nsImage = NSImage(contentsOf: imagePath) {
+                Image(nsImage: nsImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 60, height: 40)
+                    .cornerRadius(4)
+                    .clipped()
+            } else {
+                Rectangle()
+                    .fill(Color.gray.opacity(0.3))
+                    .frame(width: 60, height: 40)
+                    .cornerRadius(4)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(result.summary)
+                    .font(.callout)
+                    .lineLimit(2)
+
+                HStack(spacing: 8) {
+                    if let app = result.activeApplication {
+                        Label(app, systemImage: "app")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                    Text(result.timestamp.formatted(date: .abbreviated, time: .shortened))
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            Spacer()
+
+            // Relevance score
+            Text(String(format: "%.0f%%", result.score * 100))
+                .font(.caption2)
+                .foregroundColor(.secondary)
+        }
+        .padding(8)
+        .background(isHovering ? Color.accentColor.opacity(0.1) : Color.clear)
+        .onHover { hovering in
+            isHovering = hovering
+        }
     }
 }
 

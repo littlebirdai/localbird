@@ -20,6 +20,9 @@ class CaptureCoordinator: ObservableObject {
     private let llmService: LLMService
     private let qdrantClient: QdrantClient
 
+    // Expose search service
+    let searchService: SearchService
+
     private var imageStorageURL: URL?
 
     init() {
@@ -27,6 +30,7 @@ class CaptureCoordinator: ObservableObject {
         self.accessibilityService = AccessibilityService()
         self.llmService = LLMService()
         self.qdrantClient = QdrantClient()
+        self.searchService = SearchService(llmService: llmService, qdrantClient: qdrantClient)
 
         setupImageStorage()
         setupCallbacks()
