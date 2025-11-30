@@ -9,6 +9,7 @@ import SwiftUI
 
 struct ContentView: View {
     @ObservedObject var coordinator: CaptureCoordinator
+    @Environment(\.openWindow) private var openWindow
     @State private var searchQuery = ""
     @State private var showingSearch = false
 
@@ -38,7 +39,7 @@ struct ContentView: View {
                 statusView
             }
         }
-        .frame(width: 320, height: showingSearch ? 400 : 200)
+        .frame(width: 320, height: showingSearch ? 400 : 230)
     }
 
     private var statusView: some View {
@@ -90,6 +91,15 @@ struct ContentView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(coordinator.isRunning ? .red : .green)
 
+                Button("Browse") {
+                    openWindow(id: "timeline")
+                    NSApp.activate(ignoringOtherApps: true)
+                }
+                .buttonStyle(.bordered)
+            }
+            .padding(.bottom, 4)
+
+            HStack(spacing: 8) {
                 Button("Settings") {
                     NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
                     NSApp.activate(ignoringOtherApps: true)

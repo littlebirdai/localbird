@@ -15,13 +15,18 @@ struct localbirdApp: App {
         Settings {
             SettingsView()
         }
+
+        Window("Timeline", id: "timeline") {
+            TimelineView(coordinator: appDelegate.coordinator)
+        }
+        .defaultSize(width: 1200, height: 800)
     }
 }
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private var popover: NSPopover?
-    private let coordinator = CaptureCoordinator()
+    let coordinator = CaptureCoordinator()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupMenuBar()
