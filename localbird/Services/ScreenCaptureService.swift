@@ -149,8 +149,38 @@ class ScreenCaptureService: NSObject, ObservableObject {
     }
 
     private func imageToData(_ image: CGImage) -> Data? {
-        let bitmapRep = NSBitmapImageRep(cgImage: image)
-        return bitmapRep.representation(using: .jpeg, properties: [.compressionFactor: 0.8])
+        // Downsample to max 1440px width to save storage (~100-200KB vs 500KB-1MB)
+        let maxWidth: CGFloat = 1440
+        let scaledImage: CGImage
+
+        if CGFloat(image.width) > maxWidth {
+            let scale = maxWidth / CGFloat(image.width)
+            let newWidth = Int(maxWidth)
+            let newHeight = Int(CGFloat(image.height) * scale)
+
+            guard let context = CGContext(
+                data: nil,
+                width: newWidth,
+                height: newHeight,
+                bitsPerComponent: 8,
+                bytesPerRow: 0,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ) else {
+                return nil
+            }
+
+            context.interpolationQuality = .high
+            context.draw(image, in: CGRect(x: 0, y: 0, width: newWidth, height: newHeight))
+
+            guard let resized = context.makeImage() else { return nil }
+            scaledImage = resized
+        } else {
+            scaledImage = image
+        }
+
+        let bitmapRep = NSBitmapImageRep(cgImage: scaledImage)
+        return bitmapRep.representation(using: .jpeg, properties: [.compressionFactor: 0.7])
     }
 
     /// Request screen recording permission
