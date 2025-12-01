@@ -14,7 +14,6 @@ struct SettingsView: View {
     @AppStorage("qdrantPort") private var qdrantPort = 6333
     @AppStorage("activeVisionProvider") private var activeVisionProvider = "gemini"
 
-    @State private var showingAPIKeys = false
     @State private var qdrantStatus = "Checking..."
 
     var body: some View {
@@ -34,130 +33,145 @@ struct SettingsView: View {
                     Label("Vector DB", systemImage: "cylinder")
                 }
         }
-        .frame(width: 500, height: 400)
+        .frame(width: 500, height: 380)
         .onAppear {
             checkQdrantStatus()
         }
     }
 
     private var generalSettings: some View {
-        Form {
-            Section("Capture Settings") {
-                HStack {
-                    Text("Capture Interval")
-                    Spacer()
-                    TextField("Seconds", value: $captureInterval, format: .number)
-                        .frame(width: 60)
-                    Text("seconds")
-                }
+        VStack(alignment: .leading, spacing: 20) {
+            GroupBox("Capture Settings") {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text("Capture Interval:")
+                            .frame(width: 120, alignment: .leading)
+                        TextField("", value: $captureInterval, format: .number)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 60)
+                        Text("seconds")
+                            .foregroundColor(.secondary)
+                    }
 
-                Picker("Vision Provider", selection: $activeVisionProvider) {
-                    Text("Gemini").tag("gemini")
-                    Text("Claude").tag("claude")
-                    Text("OpenAI").tag("openai")
+                    HStack {
+                        Text("Vision Provider:")
+                            .frame(width: 120, alignment: .leading)
+                        Picker("", selection: $activeVisionProvider) {
+                            Text("Gemini").tag("gemini")
+                            Text("Claude").tag("claude")
+                            Text("OpenAI").tag("openai")
+                        }
+                        .labelsHidden()
+                        .frame(width: 120)
+                    }
                 }
+                .padding(8)
             }
 
-            Section("Permissions") {
-                HStack {
-                    Text("Screen Recording")
-                    Spacer()
-                    Button("Request") {
-                        Task {
-                            await ScreenCaptureService.requestPermission()
+            GroupBox("Permissions") {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text("Screen Recording:")
+                            .frame(width: 120, alignment: .leading)
+                        Button("Request Permission") {
+                            Task { await ScreenCaptureService.requestPermission() }
+                        }
+                    }
+
+                    HStack {
+                        Text("Accessibility:")
+                            .frame(width: 120, alignment: .leading)
+                        Button("Request Permission") {
+                            AccessibilityService.requestPermission()
                         }
                     }
                 }
-
-                HStack {
-                    Text("Accessibility")
-                    Spacer()
-                    Button("Request") {
-                        AccessibilityService.requestPermission()
-                    }
-                }
+                .padding(8)
             }
+
+            Spacer()
         }
-        .padding()
+        .padding(20)
     }
 
     private var apiSettings: some View {
-        Form {
-            Section("Gemini (Recommended for Vision)") {
+        VStack(alignment: .leading, spacing: 16) {
+            GroupBox("Gemini (Recommended for Vision)") {
                 SecureField("API Key", text: $geminiAPIKey)
                     .textFieldStyle(.roundedBorder)
+                    .padding(8)
             }
 
-            Section("Claude") {
+            GroupBox("Claude") {
                 SecureField("API Key", text: $claudeAPIKey)
                     .textFieldStyle(.roundedBorder)
+                    .padding(8)
             }
 
-            Section("OpenAI") {
+            GroupBox("OpenAI") {
                 SecureField("API Key", text: $openaiAPIKey)
                     .textFieldStyle(.roundedBorder)
+                    .padding(8)
             }
 
-            Section {
-                Text("API keys are stored in UserDefaults. For production, consider using Keychain.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
+            Text("API keys are stored in UserDefaults.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            Spacer()
         }
-        .padding()
+        .padding(20)
     }
 
     private var vectorDBSettings: some View {
-        Form {
-            Section("Qdrant Connection") {
-                HStack {
-                    Text("Host")
-                    Spacer()
-                    TextField("Host", text: $qdrantHost)
-                        .frame(width: 150)
-                        .textFieldStyle(.roundedBorder)
-                }
+        VStack(alignment: .leading, spacing: 16) {
+            GroupBox("Qdrant Connection") {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text("Host:")
+                            .frame(width: 60, alignment: .leading)
+                        TextField("", text: $qdrantHost)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 150)
+                    }
 
-                HStack {
-                    Text("Port")
-                    Spacer()
-                    TextField("Port", value: $qdrantPort, format: .number)
-                        .frame(width: 80)
-                        .textFieldStyle(.roundedBorder)
-                }
+                    HStack {
+                        Text("Port:")
+                            .frame(width: 60, alignment: .leading)
+                        TextField("", value: $qdrantPort, format: .number)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 80)
+                    }
 
-                HStack {
-                    Text("Status")
-                    Spacer()
-                    Text(qdrantStatus)
-                        .foregroundColor(qdrantStatus == "Connected" ? .green : .red)
-                    Button("Check") {
-                        checkQdrantStatus()
+                    HStack {
+                        Text("Status:")
+                            .frame(width: 60, alignment: .leading)
+                        Text(qdrantStatus)
+                            .foregroundColor(qdrantStatus == "Connected" ? .green : .orange)
+                        Spacer()
+                        Button("Check") { checkQdrantStatus() }
                     }
                 }
+                .padding(8)
             }
 
-            Section("Setup Instructions") {
+            GroupBox("Setup") {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Install Qdrant locally:")
-                        .fontWeight(.medium)
+                    Text("Run Qdrant with Docker:")
+                        .font(.caption)
                     Text("docker run -p 6333:6333 qdrant/qdrant")
                         .font(.system(.caption, design: .monospaced))
-                        .padding(8)
+                        .padding(6)
                         .background(Color.gray.opacity(0.2))
                         .cornerRadius(4)
-
-                    Text("Or install via Homebrew:")
-                        .fontWeight(.medium)
-                    Text("brew install qdrant/tap/qdrant")
-                        .font(.system(.caption, design: .monospaced))
-                        .padding(8)
-                        .background(Color.gray.opacity(0.2))
-                        .cornerRadius(4)
+                        .textSelection(.enabled)
                 }
+                .padding(8)
             }
+
+            Spacer()
         }
-        .padding()
+        .padding(20)
     }
 
     private func checkQdrantStatus() {

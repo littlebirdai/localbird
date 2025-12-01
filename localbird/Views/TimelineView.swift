@@ -129,13 +129,20 @@ struct TimelineView: View {
         }
 
         isLoading = true
+        NSLog("[TimelineView] Starting search for: %@", searchQuery)
+
         coordinator.configure(settings: AppSettings.fromUserDefaults())
         await coordinator.searchService.search(query: searchQuery, limit: 50)
 
+        NSLog("[TimelineView] Search returned %d results", coordinator.searchService.results.count)
+
         // Convert search results to frame items
-        frames = coordinator.searchService.results.compactMap { result in
+        let searchResults = coordinator.searchService.results
+        frames = searchResults.compactMap { result in
             let imagePath = getImagePath(for: result.id)
-            guard FileManager.default.fileExists(atPath: imagePath.path) else { return nil }
+            let exists = FileManager.default.fileExists(atPath: imagePath.path)
+            NSLog("[TimelineView] Result %@: image exists=%d at %@", result.id.uuidString, exists ? 1 : 0, imagePath.path)
+            guard exists else { return nil }
             return FrameItem(
                 id: result.id,
                 timestamp: result.timestamp,
@@ -144,6 +151,7 @@ struct TimelineView: View {
                 imagePath: imagePath
             )
         }
+        NSLog("[TimelineView] Final frames count: %d", frames.count)
         isLoading = false
     }
 

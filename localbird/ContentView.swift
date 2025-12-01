@@ -100,9 +100,8 @@ struct ContentView: View {
             .padding(.bottom, 4)
 
             HStack(spacing: 8) {
-                Button("Settings") {
-                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-                    NSApp.activate(ignoringOtherApps: true)
+                SettingsLink {
+                    Text("Settings")
                 }
                 .buttonStyle(.bordered)
 
