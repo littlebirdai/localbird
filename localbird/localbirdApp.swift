@@ -31,6 +31,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupMenuBar()
         configureCoordinator()
+        startCaptureAutomatically()
+    }
+
+    private func startCaptureAutomatically() {
+        Task {
+            await coordinator.startCapture()
+            NSLog("[Localbird] Auto-started capture on launch")
+        }
     }
 
     private func setupMenuBar() {

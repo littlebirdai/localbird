@@ -9,7 +9,6 @@ import SwiftUI
 
 struct ContentView: View {
     @ObservedObject var coordinator: CaptureCoordinator
-    @Environment(\.openWindow) private var openWindow
     @State private var searchQuery = ""
     @State private var showingSearch = false
 
@@ -92,8 +91,7 @@ struct ContentView: View {
                 .tint(coordinator.isRunning ? .red : .green)
 
                 Button("Browse") {
-                    openWindow(id: "timeline")
-                    NSApp.activate(ignoringOtherApps: true)
+                    openTimelineWindow()
                 }
                 .buttonStyle(.bordered)
             }
@@ -181,6 +179,21 @@ struct ContentView: View {
                     .padding(8)
             }
         }
+    }
+
+    private func openTimelineWindow() {
+        // Create and show timeline window using AppKit
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 1200, height: 800),
+            styleMask: [.titled, .closable, .resizable, .miniaturizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "Timeline"
+        window.contentView = NSHostingView(rootView: TimelineView(coordinator: coordinator))
+        window.center()
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 }
 

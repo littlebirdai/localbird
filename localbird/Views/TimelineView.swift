@@ -156,25 +156,28 @@ struct TimelineView: View {
     }
 
     private func loadFramesFromDisk() async -> [FrameItem] {
-        let fileManager = FileManager.default
-        let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let framesDir = appSupport.appendingPathComponent("Localbird/frames")
+        // Run file operations on background thread to avoid blocking UI
+        return await Task.detached(priority: .userInitiated) {
+            let fileManager = FileManager.default
+            let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            let framesDir = appSupport.appendingPathComponent("Localbird/frames")
 
-        guard let files = try? fileManager.contentsOfDirectory(at: framesDir, includingPropertiesForKeys: [.contentModificationDateKey]) else {
-            return []
-        }
-
-        return files
-            .filter { $0.pathExtension == "jpg" }
-            .compactMap { url -> FrameItem? in
-                guard let id = UUID(uuidString: url.deletingPathExtension().lastPathComponent),
-                      let attrs = try? fileManager.attributesOfItem(atPath: url.path),
-                      let modDate = attrs[.modificationDate] as? Date else {
-                    return nil
-                }
-                return FrameItem(id: id, timestamp: modDate, summary: nil, app: nil, imagePath: url)
+            guard let files = try? fileManager.contentsOfDirectory(at: framesDir, includingPropertiesForKeys: [.contentModificationDateKey]) else {
+                return []
             }
-            .sorted { $0.timestamp > $1.timestamp }
+
+            return files
+                .filter { $0.pathExtension == "jpg" }
+                .compactMap { url -> FrameItem? in
+                    guard let id = UUID(uuidString: url.deletingPathExtension().lastPathComponent),
+                          let attrs = try? fileManager.attributesOfItem(atPath: url.path),
+                          let modDate = attrs[.modificationDate] as? Date else {
+                        return nil
+                    }
+                    return FrameItem(id: id, timestamp: modDate, summary: nil, app: nil, imagePath: url)
+                }
+                .sorted { $0.timestamp > $1.timestamp }
+        }.value
     }
 
     private func getImagePath(for id: UUID) -> URL {
