@@ -2,75 +2,116 @@
 //  localbirdApp.swift
 //  localbird
 //
-//  Created by Alexander Green on 11/30/25.
+//  Headless capture service controlled via HTTP
 //
 
-import SwiftUI
+import Foundation
+import AppKit
 
 @main
-struct localbirdApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+struct LocalbirdService {
+    static func main() {
+        let app = NSApplication.shared
+        let delegate = ServiceDelegate()
+        app.delegate = delegate
 
-    var body: some Scene {
-        Settings {
-            SettingsView()
+        // Parse command line arguments
+        let args = CommandLine.arguments
+        var port: UInt16 = 9111
+
+        if let portIndex = args.firstIndex(of: "--port"), portIndex + 1 < args.count {
+            port = UInt16(args[portIndex + 1]) ?? 9111
         }
 
-        Window("Timeline", id: "timeline") {
-            TimelineView(coordinator: appDelegate.coordinator)
-        }
-        .defaultSize(width: 1200, height: 800)
+        delegate.port = port
+
+        // Run the app (required for ScreenCaptureKit and other AppKit features)
+        app.run()
     }
 }
 
-class AppDelegate: NSObject, NSApplicationDelegate {
-    private var statusItem: NSStatusItem?
-    private var popover: NSPopover?
-    let coordinator = CaptureCoordinator()
+class ServiceDelegate: NSObject, NSApplicationDelegate {
+    var port: UInt16 = 9111
+    private var httpServer: HTTPServer?
+    private var coordinator: CaptureCoordinator?
+    private var isConfigured = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        setupMenuBar()
-        configureCoordinator()
-        startCaptureAutomatically()
+        NSLog("[Localbird] Service starting on port %d", port)
+
+        // Initialize coordinator (but don't start capture until configured)
+        coordinator = CaptureCoordinator()
+
+        // Start HTTP server
+        startHTTPServer()
+
+        NSLog("[Localbird] Service ready, waiting for configuration...")
     }
 
-    private func startCaptureAutomatically() {
-        Task {
-            await coordinator.startCapture()
-            NSLog("[Localbird] Auto-started capture on launch")
-        }
+    func applicationWillTerminate(_ notification: Notification) {
+        NSLog("[Localbird] Service shutting down")
+        httpServer?.stop()
+        coordinator?.stopCapture()
     }
 
-    private func setupMenuBar() {
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+    private func startHTTPServer() {
+        httpServer = HTTPServer(port: port)
 
-        if let button = statusItem?.button {
-            button.image = NSImage(systemSymbolName: "bird.fill", accessibilityDescription: "Localbird")
-            button.action = #selector(togglePopover)
-            button.target = self
-        }
-
-        // Setup popover for status view
-        popover = NSPopover()
-        popover?.contentSize = NSSize(width: 320, height: 400)
-        popover?.behavior = .transient
-        popover?.contentViewController = NSHostingController(rootView: ContentView(coordinator: coordinator))
-    }
-
-    private func configureCoordinator() {
-        let settings = AppSettings.fromUserDefaults()
-        coordinator.configure(settings: settings)
-    }
-
-    @objc private func togglePopover() {
-        guard let button = statusItem?.button else { return }
-
-        if let popover = popover {
-            if popover.isShown {
-                popover.performClose(nil)
-            } else {
-                popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        httpServer?.getStatus = { [weak self] in
+            guard let coordinator = self?.coordinator else {
+                return ServiceStatus(isRunning: false, frameCount: 0, lastCaptureTime: nil, lastError: "Not initialized")
             }
+
+            return ServiceStatus(
+                isRunning: coordinator.isRunning,
+                frameCount: coordinator.processedFrames,
+                lastCaptureTime: coordinator.lastProcessedTime,
+                lastError: coordinator.lastError
+            )
+        }
+
+        httpServer?.onConfigure = { [weak self] config in
+            self?.handleConfigure(config)
+        }
+
+        httpServer?.onStartCapture = { [weak self] in
+            Task { @MainActor in
+                await self?.coordinator?.startCapture()
+                NSLog("[Localbird] Capture started via HTTP")
+            }
+        }
+
+        httpServer?.onStopCapture = { [weak self] in
+            Task { @MainActor in
+                self?.coordinator?.stopCapture()
+                NSLog("[Localbird] Capture stopped via HTTP")
+            }
+        }
+
+        do {
+            try httpServer?.start()
+        } catch {
+            NSLog("[Localbird] Failed to start HTTP server: %@", error.localizedDescription)
+        }
+    }
+
+    private func handleConfigure(_ config: ServiceConfig) {
+        NSLog("[Localbird] Received configuration")
+
+        let settings = AppSettings(
+            geminiAPIKey: config.geminiAPIKey ?? "",
+            claudeAPIKey: config.claudeAPIKey ?? "",
+            openaiAPIKey: config.openaiAPIKey ?? "",
+            captureInterval: config.captureInterval ?? 5.0,
+            activeVisionProvider: config.activeVisionProvider ?? "gemini",
+            qdrantHost: config.qdrantHost ?? "localhost",
+            qdrantPort: config.qdrantPort ?? 6333
+        )
+
+        Task { @MainActor in
+            coordinator?.configure(settings: settings)
+            isConfigured = true
+            NSLog("[Localbird] Configuration applied")
         }
     }
 }
