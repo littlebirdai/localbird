@@ -16,6 +16,12 @@ export default function App() {
   }>({ isRunning: false, frameCount: 0 })
 
   useEffect(() => {
+    // Check if running in Electron (window.api available)
+    if (!window.api) {
+      console.log('Running in browser mode (no Electron API)')
+      return
+    }
+
     // Poll status
     const fetchStatus = async () => {
       try {

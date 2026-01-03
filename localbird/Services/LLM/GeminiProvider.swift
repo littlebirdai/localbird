@@ -16,7 +16,7 @@ class GeminiProvider: LLMProvider {
     private let embeddingModel: String
     private let baseURL = "https://generativelanguage.googleapis.com/v1beta"
 
-    init(apiKey: String, visionModel: String = "gemini-2.0-flash", embeddingModel: String = "text-embedding-004") {
+    init(apiKey: String, visionModel: String = "gemini-3-flash-preview", embeddingModel: String = "text-embedding-004") {
         self.apiKey = apiKey
         self.visionModel = visionModel
         self.embeddingModel = embeddingModel
