@@ -1,5 +1,5 @@
 import express, { Request, Response } from 'express'
-import { streamText, convertToCoreMessages } from 'ai'
+import { streamText, convertToModelMessages } from 'ai'
 import { anthropic } from '@ai-sdk/anthropic'
 import { google } from '@ai-sdk/google'
 import Store from 'electron-store'
@@ -10,9 +10,16 @@ import path from 'path'
 
 const store = new Store()
 
+interface ChatMessagePart {
+  type: 'text'
+  text: string
+}
+
 interface ChatMessage {
   role: 'user' | 'assistant' | 'system'
-  content: string
+  parts?: ChatMessagePart[]
+  content?: string
+  id?: string
 }
 
 async function generateEmbedding(text: string): Promise<number[]> {
@@ -85,7 +92,20 @@ export function createServer() {
 
   app.post('/api/chat', async (req: Request, res: Response) => {
     try {
+      console.log('[Server] Received chat request:', JSON.stringify(req.body, null, 2))
       const { messages } = req.body as { messages: ChatMessage[] }
+
+      // Helper to extract text from message
+      const getMessageText = (msg: ChatMessage): string => {
+        if (msg.content) return msg.content
+        if (msg.parts) {
+          return msg.parts
+            .filter((p) => p.type === 'text')
+            .map((p) => p.text)
+            .join('')
+        }
+        return ''
+      }
 
       // Get the last user message for RAG
       const lastUserMessage = [...messages].reverse().find((m) => m.role === 'user')
@@ -95,7 +115,8 @@ Be concise and helpful. When referencing screen captures, mention the time and a
 
       // Search for relevant frames if there's a user message
       if (lastUserMessage) {
-        const relevantFrames = await searchRelevantFrames(lastUserMessage.content)
+        const lastUserText = getMessageText(lastUserMessage)
+        const relevantFrames = await searchRelevantFrames(lastUserText)
         if (relevantFrames.length > 0) {
           systemContext += buildContextFromFrames(relevantFrames)
         }
@@ -110,40 +131,25 @@ Be concise and helpful. When referencing screen captures, mention the time and a
       if (provider === 'anthropic' && claudeKey) {
         model = anthropic('claude-sonnet-4-20250514')
       } else if (geminiKey) {
-        model = google('gemini-2.0-flash')
+        model = google('gemini-3-flash-preview')
       } else {
         throw new Error('No API key configured')
       }
 
+      const modelMessages = await convertToModelMessages(messages)
       const result = streamText({
         model,
         system: systemContext,
-        messages: convertToCoreMessages(messages)
+        messages: modelMessages
       })
 
-      // Stream the response
-      res.setHeader('Content-Type', 'text/event-stream')
-      res.setHeader('Cache-Control', 'no-cache')
-      res.setHeader('Connection', 'keep-alive')
+      // Stream plain text
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8')
 
-      const reader = result.toDataStreamResponse().body?.getReader()
-      if (!reader) {
-        throw new Error('Failed to get stream reader')
+      for await (const chunk of result.textStream) {
+        res.write(chunk)
       }
-
-      const pump = async () => {
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-          res.write(value)
-        }
-        res.end()
-      }
-
-      pump().catch((error) => {
-        console.error('[Server] Stream error:', error)
-        res.end()
-      })
+      res.end()
     } catch (error) {
       console.error('[Server] Chat error:', error)
       res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' })
