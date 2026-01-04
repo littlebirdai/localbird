@@ -11,6 +11,8 @@ import {
 import { ArrowDownIcon, ArrowUpIcon, CheckIcon, ChevronLeftIcon, ChevronRightIcon, CopyIcon, RefreshCwIcon, SquareIcon } from 'lucide-react'
 import type { FC } from 'react'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import remarkBreaks from 'remark-breaks'
 
 export const Thread: FC = () => {
   return (
@@ -127,7 +129,7 @@ const AssistantMessage: FC = () => {
         <div className="prose prose-sm dark:prose-invert max-w-none">
           <MessagePrimitive.Content
             components={{
-              Text: ({ text }) => <ReactMarkdown>{text}</ReactMarkdown>
+              Text: ({ text }) => <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>{text}</ReactMarkdown>
             }}
           />
         </div>

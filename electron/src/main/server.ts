@@ -143,7 +143,7 @@ Be concise and helpful. When referencing screen captures, mention the time and a
         messages: modelMessages
       })
 
-      // Stream plain text
+      // Stream plain text for TextStreamChatTransport
       res.setHeader('Content-Type', 'text/plain; charset=utf-8')
 
       for await (const chunk of result.textStream) {
