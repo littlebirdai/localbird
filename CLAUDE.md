@@ -10,18 +10,30 @@ Localbird has two components: an Electron app (UI) and a Swift service (capture)
 ```bash
 cd electron
 pnpm install
+node node_modules/electron/install.js  # Required: pnpm blocks build scripts
 pnpm dev        # Development with hot reload
 pnpm build      # Production build
+```
+
+Create `electron/.env` with your API keys:
+```
+ANTHROPIC_API_KEY=sk-ant-...
 ```
 
 ### Swift Service (Capture)
 Open `localbird.xcodeproj` in Xcode and build (Cmd+B). The Electron app spawns this service automatically.
 
+**Dev path setup:** The Electron app expects Swift binary at `DerivedData/Build/Products/Debug/localbird.app` (relative to project root). If Xcode builds to global DerivedData, create a symlink:
+```bash
+mkdir -p DerivedData/Build/Products/Debug
+ln -s ~/Library/Developer/Xcode/DerivedData/localbird-*/Build/Products/Debug/localbird.app DerivedData/Build/Products/Debug/
+```
+
 **Requirements:**
 - macOS 13+
 - Node.js 24+
 - Qdrant running locally: `docker run -p 6333:6333 qdrant/qdrant`
-- API key for at least one LLM provider (Gemini recommended for vision, Claude for chat)
+- API key for at least one LLM provider (Claude works for both vision and chat; Gemini free tier has low rate limits)
 
 **Testing:**
 - Swift unit tests: `localbirdTests/` - run via Xcode (Cmd+U)
