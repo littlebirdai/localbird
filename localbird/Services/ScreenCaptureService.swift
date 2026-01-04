@@ -8,6 +8,15 @@ import Combine
 import ScreenCaptureKit
 import AppKit
 
+/// Result of capturing a specific window
+struct WindowCapture {
+    let image: CGImage
+    let windowTitle: String?
+    let windowBounds: CGRect
+    let appBundleId: String?
+    let appName: String?
+}
+
 /// Service for continuous screen capture using ScreenCaptureKit
 @MainActor
 class ScreenCaptureService: NSObject, ObservableObject {
@@ -19,7 +28,8 @@ class ScreenCaptureService: NSObject, ObservableObject {
     private var captureTimer: Timer?
     private var captureInterval: TimeInterval = 5.0 // seconds between captures
 
-    var onFrameCaptured: ((Data, Date) -> Void)?
+    /// Callback now includes optional capture metadata
+    var onFrameCaptured: ((Data, Date, CaptureMetadata?) -> Void)?
 
     override init() {
         super.init()
@@ -36,7 +46,7 @@ class ScreenCaptureService: NSObject, ObservableObject {
         do {
             // Check for screen recording permission
             let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-            NSLog("[ScreenCapture] Got shareable content, displays: %d", content.displays.count)
+            NSLog("[ScreenCapture] Got shareable content, displays: %d, windows: %d", content.displays.count, content.windows.count)
 
             guard let display = content.displays.first else {
                 captureError = "No display found"
@@ -96,18 +106,20 @@ class ScreenCaptureService: NSObject, ObservableObject {
         captureTimer = Timer.scheduledTimer(withTimeInterval: captureInterval, repeats: true) { [weak self] _ in
             NSLog("[ScreenCapture] Timer fired!")
             Task { @MainActor in
-                await self?.captureFrame()
+                await self?.captureFrame(trigger: .timer)
             }
         }
         // Fire immediately too
         NSLog("[ScreenCapture] Timer created, firing immediately...")
         Task {
-            await captureFrame()
+            await captureFrame(trigger: .timer)
         }
     }
 
-    private func captureFrame() async {
-        NSLog("[ScreenCapture] captureFrame() called")
+    /// Capture frame - can be called with different triggers
+    func captureFrame(trigger: CaptureTrigger = .timer) async {
+        NSLog("[ScreenCapture] captureFrame() called, trigger: %@", trigger.rawValue)
+
         do {
             let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
 
@@ -116,35 +128,113 @@ class ScreenCaptureService: NSObject, ObservableObject {
                 return
             }
 
-            let filter = SCContentFilter(display: display, excludingWindows: [])
-            let config = SCStreamConfiguration()
-            config.width = Int(display.width)
-            config.height = Int(display.height)
-            config.pixelFormat = kCVPixelFormatType_32BGRA
+            // Get current frontmost app
+            let frontmostApp = NSWorkspace.shared.frontmostApplication
 
-            NSLog("[ScreenCapture] Capturing screenshot...")
-            let image = try await SCScreenshotManager.captureImage(
-                contentFilter: filter,
-                configuration: config
-            )
-            NSLog("[ScreenCapture] Got image: %dx%d", image.width, image.height)
+            // Try to capture the frontmost app's window
+            if let app = frontmostApp,
+               let windowCapture = try await captureAppWindow(app: app, content: content, display: display) {
 
-            if let imageData = imageToData(image) {
-                NSLog("[ScreenCapture] Converted to JPEG: %d bytes", imageData.count)
-                let timestamp = Date()
-                lastCaptureTime = timestamp
-                if let callback = onFrameCaptured {
-                    NSLog("[ScreenCapture] Calling callback...")
-                    callback(imageData, timestamp)
-                } else {
-                    NSLog("[ScreenCapture] WARNING: No callback set!")
+                if let imageData = imageToData(windowCapture.image) {
+                    NSLog("[ScreenCapture] Window capture: %@ - %@, %d bytes",
+                          windowCapture.appName ?? "unknown",
+                          windowCapture.windowTitle ?? "untitled",
+                          imageData.count)
+
+                    let timestamp = Date()
+                    lastCaptureTime = timestamp
+
+                    let metadata = CaptureMetadata(
+                        trigger: trigger,
+                        appBundleId: windowCapture.appBundleId,
+                        appName: windowCapture.appName,
+                        windowTitle: windowCapture.windowTitle,
+                        windowBounds: windowCapture.windowBounds
+                    )
+
+                    onFrameCaptured?(imageData, timestamp, metadata)
                 }
             } else {
-                NSLog("[ScreenCapture] Failed to convert image to data")
+                // Fallback to full screen capture
+                NSLog("[ScreenCapture] Falling back to full screen capture")
+                try await captureFullScreen(display: display, trigger: trigger)
             }
 
         } catch {
             NSLog("[ScreenCapture] captureFrame error: %@", error.localizedDescription)
+        }
+    }
+
+    /// Capture a specific app's frontmost window
+    private func captureAppWindow(app: NSRunningApplication, content: SCShareableContent, display: SCDisplay) async throws -> WindowCapture? {
+        // Find windows belonging to this app
+        let appWindows = content.windows.filter { window in
+            window.owningApplication?.processID == app.processIdentifier &&
+            window.isOnScreen &&
+            window.frame.width > 100 && window.frame.height > 100 // Filter tiny windows
+        }.sorted { $0.windowLayer < $1.windowLayer } // Lower layer = more frontmost
+
+        guard let frontmostWindow = appWindows.first else {
+            NSLog("[ScreenCapture] No visible windows for app: %@", app.localizedName ?? "unknown")
+            return nil
+        }
+
+        NSLog("[ScreenCapture] Capturing window: %@ (%dx%d)",
+              frontmostWindow.title ?? "untitled",
+              Int(frontmostWindow.frame.width),
+              Int(frontmostWindow.frame.height))
+
+        // Create filter for just this window
+        let filter = SCContentFilter(display: display, including: [frontmostWindow])
+
+        let config = SCStreamConfiguration()
+        config.width = Int(frontmostWindow.frame.width)
+        config.height = Int(frontmostWindow.frame.height)
+        config.pixelFormat = kCVPixelFormatType_32BGRA
+        config.captureResolution = .best
+
+        let image = try await SCScreenshotManager.captureImage(
+            contentFilter: filter,
+            configuration: config
+        )
+
+        return WindowCapture(
+            image: image,
+            windowTitle: frontmostWindow.title,
+            windowBounds: frontmostWindow.frame,
+            appBundleId: app.bundleIdentifier,
+            appName: app.localizedName
+        )
+    }
+
+    /// Fallback full screen capture
+    private func captureFullScreen(display: SCDisplay, trigger: CaptureTrigger) async throws {
+        let filter = SCContentFilter(display: display, excludingWindows: [])
+        let config = SCStreamConfiguration()
+        config.width = Int(display.width)
+        config.height = Int(display.height)
+        config.pixelFormat = kCVPixelFormatType_32BGRA
+
+        NSLog("[ScreenCapture] Capturing full screen...")
+        let image = try await SCScreenshotManager.captureImage(
+            contentFilter: filter,
+            configuration: config
+        )
+
+        if let imageData = imageToData(image) {
+            NSLog("[ScreenCapture] Full screen capture: %d bytes", imageData.count)
+            let timestamp = Date()
+            lastCaptureTime = timestamp
+
+            let metadata = CaptureMetadata(
+                trigger: trigger,
+                appBundleId: nil,
+                appName: "Full Screen",
+                windowTitle: nil,
+                windowBounds: CGRect(x: 0, y: 0, width: display.width, height: display.height)
+            )
+
+            onFrameCaptured?(imageData, timestamp, metadata)
         }
     }
 

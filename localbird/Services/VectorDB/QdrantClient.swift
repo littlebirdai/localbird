@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import CoreGraphics
 
 /// Client for interacting with local Qdrant vector database
 class QdrantClient {
@@ -94,7 +95,16 @@ class QdrantClient {
             "userActivity": frame.llmAnalysis?.userActivity ?? "",
             "visibleText": frame.llmAnalysis?.visibleText ?? [],
             "focusedApp": frame.accessibilityData?.focusedApp ?? "",
-            "focusedWindow": frame.accessibilityData?.focusedWindow ?? ""
+            "focusedWindow": frame.accessibilityData?.focusedWindow ?? "",
+            // Capture metadata
+            "captureTrigger": frame.captureMetadata?.trigger.rawValue ?? "timer",
+            "appBundleId": frame.captureMetadata?.appBundleId ?? "",
+            "appName": frame.captureMetadata?.appName ?? "",
+            "windowTitle": frame.captureMetadata?.windowTitle ?? "",
+            "windowBoundsX": frame.captureMetadata?.windowBounds?.origin.x ?? 0,
+            "windowBoundsY": frame.captureMetadata?.windowBounds?.origin.y ?? 0,
+            "windowBoundsWidth": frame.captureMetadata?.windowBounds?.width ?? 0,
+            "windowBoundsHeight": frame.captureMetadata?.windowBounds?.height ?? 0
         ]
 
         let body: [String: Any] = [
@@ -165,7 +175,11 @@ class QdrantClient {
                 timestamp: Date(timeIntervalSince1970: payload["timestamp"] as? Double ?? 0),
                 summary: payload["summary"] as? String ?? "",
                 activeApplication: payload["activeApplication"] as? String,
-                userActivity: payload["userActivity"] as? String
+                userActivity: payload["userActivity"] as? String,
+                captureTrigger: payload["captureTrigger"] as? String,
+                appBundleId: payload["appBundleId"] as? String,
+                appName: payload["appName"] as? String,
+                windowTitle: payload["windowTitle"] as? String
             )
         }
     }
@@ -221,7 +235,11 @@ class QdrantClient {
                 timestamp: Date(timeIntervalSince1970: payload["timestamp"] as? Double ?? 0),
                 summary: payload["summary"] as? String ?? "",
                 activeApplication: payload["activeApplication"] as? String,
-                userActivity: payload["userActivity"] as? String
+                userActivity: payload["userActivity"] as? String,
+                captureTrigger: payload["captureTrigger"] as? String,
+                appBundleId: payload["appBundleId"] as? String,
+                appName: payload["appName"] as? String,
+                windowTitle: payload["windowTitle"] as? String
             )
         }
     }
@@ -249,7 +267,11 @@ class QdrantClient {
             timestamp: Date(timeIntervalSince1970: payload["timestamp"] as? Double ?? 0),
             summary: payload["summary"] as? String ?? "",
             activeApplication: payload["activeApplication"] as? String,
-            userActivity: payload["userActivity"] as? String
+            userActivity: payload["userActivity"] as? String,
+            captureTrigger: payload["captureTrigger"] as? String,
+            appBundleId: payload["appBundleId"] as? String,
+            appName: payload["appName"] as? String,
+            windowTitle: payload["windowTitle"] as? String
         )
     }
 
@@ -310,6 +332,11 @@ struct SearchResult: Identifiable {
     let summary: String
     let activeApplication: String?
     let userActivity: String?
+    // Capture metadata
+    let captureTrigger: String?
+    let appBundleId: String?
+    let appName: String?
+    let windowTitle: String?
 }
 
 struct CollectionInfo {
