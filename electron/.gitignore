@@ -5,3 +5,7 @@ dist/
 *.log
 .env
 *.profraw
+
+# Playwright
+playwright-report/
+test-results/

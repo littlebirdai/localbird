@@ -309,7 +309,13 @@ app.whenReady().then(async () => {
   setupIPC()
   createWindow()
   createTray()
-  await startServices()
+
+  // Skip services in test mode
+  if (!process.env.LOCALBIRD_SKIP_SERVICES) {
+    await startServices()
+  } else {
+    console.log('[Main] Skipping services (test mode)')
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
