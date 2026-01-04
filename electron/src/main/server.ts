@@ -145,10 +145,14 @@ export function createServer() {
         iteration++
         console.log(`[Server] Agent iteration ${iteration}`)
 
-        // Create streaming message
+        // Create streaming message with extended thinking
         const stream = client.messages.stream({
           model: 'claude-opus-4-5-20251101',
-          max_tokens: 4096,
+          max_tokens: 16000,
+          thinking: {
+            type: 'enabled',
+            budget_tokens: 10000
+          },
           system: systemPrompt,
           messages: anthropicMessages,
           tools: toolDefinitions
@@ -156,11 +160,30 @@ export function createServer() {
 
         // Collect the response
         let textContent = ''
+        let thinkingContent = ''
+        let thinkingStarted = false
         const toolUses: Array<{ id: string; name: string; input: Record<string, unknown> }> = []
+
+        // Stream thinking to client with start/end markers
+        stream.on('thinking', (thinking) => {
+          if (!clientDisconnected) {
+            if (!thinkingStarted) {
+              res.write('<thinking>')
+              thinkingStarted = true
+            }
+            thinkingContent += thinking
+            res.write(thinking)
+          }
+        })
 
         // Stream text to client as it comes
         stream.on('text', (text) => {
           if (!clientDisconnected) {
+            // Close thinking tag if we were thinking
+            if (thinkingStarted) {
+              res.write('</thinking>')
+              thinkingStarted = false
+            }
             textContent += text
             res.write(text)
           }
@@ -168,6 +191,12 @@ export function createServer() {
 
         // Wait for the stream to complete
         const response = await stream.finalMessage()
+
+        // Close thinking tag if still open
+        if (thinkingStarted && !clientDisconnected) {
+          res.write('</thinking>')
+          thinkingStarted = false
+        }
 
         // Check for tool use
         const hasToolUse = response.content.some((block) => block.type === 'tool_use')

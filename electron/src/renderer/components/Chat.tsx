@@ -1,20 +1,23 @@
-import { AssistantRuntimeProvider } from '@assistant-ui/react'
-import { useChatRuntime } from '@assistant-ui/react-ai-sdk'
-import { TextStreamChatTransport } from 'ai'
 import { Thread } from './assistant-ui/thread'
-
-const transport = new TextStreamChatTransport({
-  api: 'http://localhost:3001/api/chat'
-})
+import { ChatList } from './ChatList'
+import { useChatPersistence } from '@/hooks/useChatPersistence'
 
 export function Chat() {
-  const runtime = useChatRuntime({ transport })
+  const { currentChatId, loadChat, newChat, deleteChat } = useChatPersistence()
 
   return (
-    <AssistantRuntimeProvider runtime={runtime}>
-      <div className="h-full">
+    <div className="flex h-full">
+      <div className="w-64 flex-shrink-0">
+        <ChatList
+          currentChatId={currentChatId}
+          onSelectChat={loadChat}
+          onNewChat={newChat}
+          onDeleteChat={deleteChat}
+        />
+      </div>
+      <div className="flex-1 min-w-0">
         <Thread />
       </div>
-    </AssistantRuntimeProvider>
+    </div>
   )
 }

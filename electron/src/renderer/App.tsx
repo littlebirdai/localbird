@@ -1,12 +1,20 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { MessageSquare, Grid3X3, Settings as SettingsIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Chat } from '@/components/Chat'
 import { Timeline } from '@/components/Timeline'
 import { Settings } from '@/components/Settings'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { AssistantRuntimeProvider } from '@assistant-ui/react'
+import { useChatRuntime } from '@assistant-ui/react-ai-sdk'
+import { TextStreamChatTransport } from 'ai'
 
 type View = 'chat' | 'timeline' | 'settings'
+
+// Create transport once at module level so it persists
+const chatTransport = new TextStreamChatTransport({
+  api: 'http://localhost:3001/api/chat'
+})
 
 export default function App() {
   const [currentView, setCurrentView] = useState<View>('chat')
@@ -14,6 +22,9 @@ export default function App() {
     isRunning: boolean
     frameCount: number
   }>({ isRunning: false, frameCount: 0 })
+
+  // Create runtime at app level so it persists across view changes
+  const runtime = useChatRuntime({ transport: chatTransport })
 
   useEffect(() => {
     // Check if running in Electron (window.api available)
@@ -50,51 +61,53 @@ export default function App() {
 
   return (
     <TooltipProvider>
-      <div className="flex h-screen bg-background">
-        {/* Sidebar */}
-        <div className="w-16 flex flex-col items-center py-4 border-r bg-muted/30">
-          {/* Drag region for window */}
-          <div className="h-8 w-full app-drag-region" />
+      <AssistantRuntimeProvider runtime={runtime}>
+        <div className="flex h-screen bg-background">
+          {/* Sidebar */}
+          <div className="w-16 flex flex-col items-center py-4 border-r bg-muted/30">
+            {/* Drag region for window */}
+            <div className="h-8 w-full app-drag-region" />
 
-          <nav className="flex flex-col items-center gap-2 mt-4">
-            <NavButton
-              icon={<MessageSquare className="w-5 h-5" />}
-              active={currentView === 'chat'}
-              onClick={() => setCurrentView('chat')}
-              label="Chat"
-            />
-            <NavButton
-              icon={<Grid3X3 className="w-5 h-5" />}
-              active={currentView === 'timeline'}
-              onClick={() => setCurrentView('timeline')}
-              label="Timeline"
-            />
-            <NavButton
-              icon={<SettingsIcon className="w-5 h-5" />}
-              active={currentView === 'settings'}
-              onClick={() => setCurrentView('settings')}
-              label="Settings"
-            />
-          </nav>
+            <nav className="flex flex-col items-center gap-2 mt-4">
+              <NavButton
+                icon={<MessageSquare className="w-5 h-5" />}
+                active={currentView === 'chat'}
+                onClick={() => setCurrentView('chat')}
+                label="Chat"
+              />
+              <NavButton
+                icon={<Grid3X3 className="w-5 h-5" />}
+                active={currentView === 'timeline'}
+                onClick={() => setCurrentView('timeline')}
+                label="Timeline"
+              />
+              <NavButton
+                icon={<SettingsIcon className="w-5 h-5" />}
+                active={currentView === 'settings'}
+                onClick={() => setCurrentView('settings')}
+                label="Settings"
+              />
+            </nav>
 
-          <div className="mt-auto mb-4">
-            <div
-              className={cn(
-                'w-3 h-3 rounded-full',
-                status.isRunning ? 'bg-green-500' : 'bg-muted-foreground/30'
-              )}
-              title={status.isRunning ? `Capturing (${status.frameCount} frames)` : 'Stopped'}
-            />
+            <div className="mt-auto mb-4">
+              <div
+                className={cn(
+                  'w-3 h-3 rounded-full',
+                  status.isRunning ? 'bg-green-500' : 'bg-muted-foreground/30'
+                )}
+                title={status.isRunning ? `Capturing (${status.frameCount} frames)` : 'Stopped'}
+              />
+            </div>
           </div>
-        </div>
 
-        {/* Main content */}
-        <main className="flex-1 overflow-hidden">
-          {currentView === 'chat' && <Chat />}
-          {currentView === 'timeline' && <Timeline />}
-          {currentView === 'settings' && <Settings />}
-        </main>
-      </div>
+          {/* Main content */}
+          <main className="flex-1 overflow-hidden">
+            {currentView === 'chat' && <Chat />}
+            {currentView === 'timeline' && <Timeline />}
+            {currentView === 'settings' && <Settings />}
+          </main>
+        </div>
+      </AssistantRuntimeProvider>
     </TooltipProvider>
   )
 }

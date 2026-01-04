@@ -13,6 +13,26 @@ dotenvConfig()
 
 const store = new Store()
 
+// Chat storage types
+interface ChatMessage {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  createdAt: number
+}
+
+interface Chat {
+  id: string
+  title: string
+  createdAt: number
+  updatedAt: number
+  messages: ChatMessage[]
+}
+
+interface ChatsStore {
+  [id: string]: Chat
+}
+
 // Load API keys from environment variables for local dev
 function getApiKey(key: string, envVar: string): string {
   // Environment variable takes precedence for local dev
@@ -293,6 +313,37 @@ function setupIPC(): void {
 
   ipcMain.handle('check-qdrant', async () => {
     return await qdrantClient.healthCheck()
+  })
+
+  // Chat CRUD handlers
+  ipcMain.handle('chats:list', () => {
+    const chats = (store.get('chats') as ChatsStore) || {}
+    // Return metadata only (without messages) sorted by updatedAt desc
+    return Object.values(chats)
+      .map(({ id, title, createdAt, updatedAt }) => ({ id, title, createdAt, updatedAt }))
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+  })
+
+  ipcMain.handle('chats:get', (_event, id: string) => {
+    const chats = (store.get('chats') as ChatsStore) || {}
+    return chats[id] || null
+  })
+
+  ipcMain.handle('chats:save', (_event, chat: Chat) => {
+    const chats = (store.get('chats') as ChatsStore) || {}
+    chats[chat.id] = {
+      ...chat,
+      updatedAt: Date.now()
+    }
+    store.set('chats', chats)
+    return { success: true }
+  })
+
+  ipcMain.handle('chats:delete', (_event, id: string) => {
+    const chats = (store.get('chats') as ChatsStore) || {}
+    delete chats[id]
+    store.set('chats', chats)
+    return { success: true }
   })
 }
 
