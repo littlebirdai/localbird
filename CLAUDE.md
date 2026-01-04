@@ -32,7 +32,12 @@ ln -s ~/Library/Developer/Xcode/DerivedData/localbird-*/Build/Products/Debug/loc
 **Requirements:**
 - macOS 13+
 - Node.js 24+
-- Qdrant running locally: `docker run -p 6333:6333 qdrant/qdrant`
+- Qdrant running locally with persistent storage:
+  ```bash
+  docker run -d --name localbird-qdrant -p 6333:6333 \
+    -v ~/Library/Application\ Support/Localbird/qdrant:/qdrant/storage \
+    qdrant/qdrant
+  ```
 - API key for at least one LLM provider (Claude works for both vision and chat; Gemini free tier has low rate limits)
 
 **Testing:**
@@ -101,6 +106,10 @@ Swift service exposes HTTP endpoints on localhost:9111:
 - `POST /capture/stop` → stops capture
 
 Electron renderer uses preload API (`window.api`) for IPC with main process.
+
+## Common Errors to Avoid
+
+- When testing Gemini API, use `gemini-2.5-flash` or `gemini-3-flash-preview`, not `gemini-2.0-flash` (older models have stricter/different rate limits)
 
 ## User-Specific Notes
 
