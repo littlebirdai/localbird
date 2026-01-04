@@ -14,11 +14,14 @@ class CaptureCoordinator: ObservableObject {
     @Published var processedFrames = 0
     @Published var lastError: String?
     @Published var lastProcessedTime: Date?
+    @Published var lastCaptureTrigger: CaptureTrigger?
+    @Published var currentAppName: String?
 
     private let screenCaptureService: ScreenCaptureService
     private let accessibilityService: AccessibilityService
     private let llmService: LLMService
     private let qdrantClient: QdrantClient
+    private let frontmostAppMonitor: FrontmostAppMonitor
 
     // Expose search service
     let searchService: SearchService
@@ -30,10 +33,12 @@ class CaptureCoordinator: ObservableObject {
         self.accessibilityService = AccessibilityService()
         self.llmService = LLMService()
         self.qdrantClient = QdrantClient()
+        self.frontmostAppMonitor = FrontmostAppMonitor()
         self.searchService = SearchService(llmService: llmService, qdrantClient: qdrantClient)
 
         setupImageStorage()
         setupCallbacks()
+        setupAppMonitor()
     }
 
     // MARK: - Configuration
@@ -86,13 +91,19 @@ class CaptureCoordinator: ObservableObject {
         }
 
         await screenCaptureService.startCapture()
+        frontmostAppMonitor.startMonitoring()
         isRunning = true
         lastError = nil
-        NSLog("[Localbird] Capture started successfully")
+
+        // Set initial app name
+        currentAppName = frontmostAppMonitor.currentApp?.localizedName
+
+        NSLog("[Localbird] Capture started (timer + app change monitoring)")
     }
 
     func stopCapture() {
         screenCaptureService.stopCapture()
+        frontmostAppMonitor.stopMonitoring()
         isRunning = false
     }
 
@@ -108,16 +119,39 @@ class CaptureCoordinator: ObservableObject {
     }
 
     private func setupCallbacks() {
-        screenCaptureService.onFrameCaptured = { [weak self] imageData, timestamp in
-            NSLog("[Localbird] Frame captured callback triggered, %d bytes", imageData.count)
+        screenCaptureService.onFrameCaptured = { [weak self] imageData, timestamp, metadata in
+            NSLog("[Localbird] Frame captured: trigger=%@, app=%@, %d bytes",
+                  metadata?.trigger.rawValue ?? "unknown",
+                  metadata?.appName ?? "unknown",
+                  imageData.count)
             Task { @MainActor in
-                await self?.processFrame(imageData: imageData, timestamp: timestamp)
+                await self?.processFrame(imageData: imageData, timestamp: timestamp, metadata: metadata)
             }
         }
     }
 
-    private func processFrame(imageData: Data, timestamp: Date) async {
+    private func setupAppMonitor() {
+        frontmostAppMonitor.onAppChanged = { [weak self] newApp, oldApp in
+            guard let self = self, self.isRunning else { return }
+
+            NSLog("[Localbird] App changed: %@ -> %@",
+                  oldApp?.localizedName ?? "none",
+                  newApp?.localizedName ?? "none")
+
+            self.currentAppName = newApp?.localizedName
+
+            // Trigger capture on app change
+            Task { @MainActor in
+                await self.screenCaptureService.captureFrame(trigger: .appChanged)
+            }
+        }
+    }
+
+    private func processFrame(imageData: Data, timestamp: Date, metadata: CaptureMetadata?) async {
         NSLog("[Localbird] Processing frame, size: %d bytes", imageData.count)
+
+        // Update UI state
+        lastCaptureTrigger = metadata?.trigger
 
         do {
             // 1. Capture accessibility snapshot
@@ -146,7 +180,8 @@ class CaptureCoordinator: ObservableObject {
                 imageData: imageData,
                 accessibilityData: accessibilitySnapshot,
                 llmAnalysis: analysis,
-                embedding: embedding
+                embedding: embedding,
+                captureMetadata: metadata
             )
 
             // 6. Save image to disk

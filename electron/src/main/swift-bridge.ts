@@ -70,10 +70,19 @@ class SwiftBridge {
   private isReady = false
   private restartAttempts = 0
   private maxRestartAttempts = 3
+  private usingExternalService = false
 
   async start(): Promise<void> {
-    if (this.process) {
+    if (this.process || this.usingExternalService) {
       console.log('[SwiftBridge] Already running')
+      return
+    }
+
+    // Check if standalone service is already running
+    if (await this.checkExistingService()) {
+      console.log('[SwiftBridge] Using existing standalone service')
+      this.usingExternalService = true
+      this.isReady = true
       return
     }
 
@@ -110,7 +119,23 @@ class SwiftBridge {
     this.restartAttempts = 0
   }
 
+  private async checkExistingService(): Promise<boolean> {
+    try {
+      const response = await httpGet(`${this.baseUrl}/status`)
+      return response.status === 200
+    } catch {
+      return false
+    }
+  }
+
   async stop(): Promise<void> {
+    // Don't stop external standalone service
+    if (this.usingExternalService) {
+      console.log('[SwiftBridge] Using external service, not stopping')
+      this.isReady = false
+      return
+    }
+
     if (this.process) {
       console.log('[SwiftBridge] Stopping service')
       this.process.kill('SIGTERM')
