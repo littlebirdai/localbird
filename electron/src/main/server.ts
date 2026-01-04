@@ -1,11 +1,10 @@
 import express, { Request, Response } from 'express'
-import { streamText, convertToModelMessages } from 'ai'
-import { createAnthropic } from '@ai-sdk/anthropic'
-import { createGoogleGenerativeAI } from '@ai-sdk/google'
+import Anthropic from '@anthropic-ai/sdk'
 import Store from 'electron-store'
 import { qdrantClient } from './qdrant'
 import { getFramesDirectory } from './utils'
-import { createTools, ToolContext } from './tools'
+import { toolDefinitions } from './tools/definitions'
+import { executeTool, ToolContext } from './tools/executor'
 import fs from 'fs'
 import path from 'path'
 
@@ -24,7 +23,6 @@ interface ChatMessage {
 }
 
 async function generateEmbedding(text: string): Promise<number[]> {
-  // Use Google's embedding model
   const apiKey = store.get('geminiAPIKey') as string
   if (!apiKey) {
     throw new Error('Gemini API key not configured')
@@ -50,18 +48,12 @@ async function generateEmbedding(text: string): Promise<number[]> {
   return data.embedding?.values || []
 }
 
-// Create tool context for the agentic loop
+// Create tool context
 function createToolContext(): ToolContext {
   return {
     qdrantClient,
     generateEmbedding
   }
-}
-
-// Search for relevant frames using semantic search
-async function searchRelevantFrames(query: string, limit = 20) {
-  const embedding = await generateEmbedding(query)
-  return qdrantClient.search(embedding, limit)
 }
 
 // Agent system prompt
@@ -85,9 +77,22 @@ You have tools to search across screen captures. Use them to find relevant infor
 5. **Acknowledge limitations**: If searches return nothing, say so and suggest alternatives.
 
 ## Current Time
-${new Date().toISOString()}
+{CURRENT_TIME}
 
 Use this to interpret relative time references like "today", "yesterday", "this morning".`
+
+// Convert assistant-ui message format to Anthropic format
+function convertMessages(messages: ChatMessage[]): Anthropic.MessageParam[] {
+  return messages
+    .filter((m) => m.role !== 'system')
+    .map((m) => {
+      const content = m.content || m.parts?.map((p) => p.text).join('') || ''
+      return {
+        role: m.role as 'user' | 'assistant',
+        content
+      }
+    })
+}
 
 export function createServer() {
   const app = express()
@@ -110,47 +115,19 @@ export function createServer() {
       console.log('[Server] Received chat request')
       const { messages } = req.body as { messages: ChatMessage[] }
 
-      // Get the configured provider and API keys
-      const provider = (store.get('chatProvider') as string) || 'anthropic'
       const claudeKey = (store.get('claudeAPIKey') as string) || process.env.ANTHROPIC_API_KEY
-      const geminiKey = (store.get('geminiAPIKey') as string) || process.env.GEMINI_API_KEY
-
-      let model
-      // Prefer Claude for chat (tools disabled due to AI SDK v6 schema bug)
-      if (provider === 'anthropic' && claudeKey) {
-        const anthropic = createAnthropic({ apiKey: claudeKey })
-        model = anthropic('claude-sonnet-4-20250514')
-      } else if (geminiKey) {
-        const google = createGoogleGenerativeAI({ apiKey: geminiKey })
-        model = google('gemini-2.0-flash')
-      } else {
-        throw new Error('No API key configured')
+      if (!claudeKey) {
+        throw new Error('Claude API key not configured')
       }
 
-      // TODO: Re-enable tools when AI SDK v6 fixes Anthropic schema bug
-      // See: https://github.com/vercel/ai/issues/8784
-      // const toolContext = createToolContext()
-      // const tools = createTools(toolContext)
+      const client = new Anthropic({ apiKey: claudeKey })
+      const toolContext = createToolContext()
 
       // Dynamic system prompt with current time
-      const systemPrompt = AGENT_SYSTEM_PROMPT.replace(
-        '${new Date().toISOString()}',
-        new Date().toISOString()
-      )
+      const systemPrompt = AGENT_SYSTEM_PROMPT.replace('{CURRENT_TIME}', new Date().toISOString())
 
-      // Convert messages to model format
-      // Handle both assistant-ui format (with parts) and simple format (with content)
-      let modelMessages
-      try {
-        // Try assistant-ui format first
-        modelMessages = await convertToModelMessages(messages)
-      } catch {
-        // Fall back to simple format - just pass through
-        modelMessages = messages.map((m: ChatMessage) => ({
-          role: m.role,
-          content: m.content || (m.parts?.map((p) => p.text).join('') ?? '')
-        }))
-      }
+      // Convert messages to Anthropic format
+      let anthropicMessages = convertMessages(messages)
 
       // Track if client disconnected
       let clientDisconnected = false
@@ -158,33 +135,99 @@ export function createServer() {
         clientDisconnected = true
       })
 
-      // Basic chat without tools (tools disabled due to AI SDK v6 bug)
-      const result = streamText({
-        model,
-        system: systemPrompt,
-        messages: modelMessages
-        // TODO: Re-enable when AI SDK v6 fixes the Anthropic tools schema bug
-        // tools,
-        // maxSteps: 5,
-        // toolChoice: 'auto'
-      })
-
-      // Stream the response with tool call information
       res.setHeader('Content-Type', 'text/plain; charset=utf-8')
 
-      try {
-        for await (const chunk of result.textStream) {
-          if (clientDisconnected) break
-          res.write(chunk)
+      // Agent loop - continue until no more tool calls or max iterations
+      const MAX_ITERATIONS = 10
+      let iteration = 0
+
+      while (iteration < MAX_ITERATIONS && !clientDisconnected) {
+        iteration++
+        console.log(`[Server] Agent iteration ${iteration}`)
+
+        // Create streaming message
+        const stream = client.messages.stream({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 4096,
+          system: systemPrompt,
+          messages: anthropicMessages,
+          tools: toolDefinitions
+        })
+
+        // Collect the response
+        let textContent = ''
+        const toolUses: Array<{ id: string; name: string; input: Record<string, unknown> }> = []
+
+        // Stream text to client as it comes
+        stream.on('text', (text) => {
+          if (!clientDisconnected) {
+            textContent += text
+            res.write(text)
+          }
+        })
+
+        // Wait for the stream to complete
+        const response = await stream.finalMessage()
+
+        // Check for tool use
+        const hasToolUse = response.content.some((block) => block.type === 'tool_use')
+
+        if (!hasToolUse) {
+          // No tool calls, we're done
+          break
         }
-        if (!clientDisconnected) {
-          res.end()
+
+        // Collect all tool uses
+        for (const block of response.content) {
+          if (block.type === 'tool_use') {
+            toolUses.push({
+              id: block.id,
+              name: block.name,
+              input: block.input as Record<string, unknown>
+            })
+          }
         }
-      } catch (streamError) {
-        // Ignore EPIPE errors from client disconnect
-        if ((streamError as NodeJS.ErrnoException).code !== 'EPIPE') {
-          throw streamError
+
+        if (toolUses.length === 0) {
+          break
         }
+
+        // Build assistant message with all content blocks
+        const assistantContent: Anthropic.ContentBlock[] = response.content
+
+        // Add assistant message
+        anthropicMessages.push({
+          role: 'assistant',
+          content: assistantContent
+        })
+
+        // Execute tools and build tool results
+        const toolResults: Anthropic.ToolResultBlockParam[] = []
+        for (const toolUse of toolUses) {
+          console.log(`[Server] Executing tool: ${toolUse.name}`)
+
+          // Notify user that we're using a tool
+          if (!clientDisconnected) {
+            res.write(`\n\n[Using ${toolUse.name}...]\n\n`)
+          }
+
+          const result = await executeTool(toolUse.name, toolUse.input, toolContext)
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: toolUse.id,
+            content: result
+          })
+        }
+
+        // Add tool results as user message
+        anthropicMessages.push({
+          role: 'user',
+          content: toolResults
+        })
+      }
+
+      if (!clientDisconnected) {
+        res.end()
       }
     } catch (error) {
       console.error('[Server] Chat error:', error)
@@ -221,7 +264,8 @@ export function createServer() {
   app.post('/api/frames/search', async (req: Request, res: Response) => {
     try {
       const { query, limit = 20 } = req.body
-      const frames = await searchRelevantFrames(query, limit)
+      const embedding = await generateEmbedding(query)
+      const frames = await qdrantClient.search(embedding, limit)
       res.json({ frames })
     } catch (error) {
       res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' })
