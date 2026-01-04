@@ -147,7 +147,7 @@ export function createServer() {
 
         // Create streaming message
         const stream = client.messages.stream({
-          model: 'claude-sonnet-4-20250514',
+          model: 'claude-opus-4-5-20251101',
           max_tokens: 4096,
           system: systemPrompt,
           messages: anthropicMessages,
@@ -257,6 +257,35 @@ export function createServer() {
       res.sendFile(imagePath)
     } else {
       res.status(404).json({ error: 'Image not found' })
+    }
+  })
+
+  // Get latest frame path (for Claude Code to read directly)
+  app.get('/api/frames/latest', (_req: Request, res: Response) => {
+    try {
+      const framesDir = getFramesDirectory()
+      const files = fs.readdirSync(framesDir)
+        .filter(f => f.endsWith('.jpg'))
+        .map(f => ({
+          name: f,
+          path: path.join(framesDir, f),
+          mtime: fs.statSync(path.join(framesDir, f)).mtime.getTime()
+        }))
+        .sort((a, b) => b.mtime - a.mtime)
+
+      if (files.length === 0) {
+        res.status(404).json({ error: 'No frames found' })
+        return
+      }
+
+      const latest = files[0]
+      res.json({
+        path: latest.path,
+        id: latest.name.replace('.jpg', ''),
+        timestamp: new Date(latest.mtime).toISOString()
+      })
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' })
     }
   })
 

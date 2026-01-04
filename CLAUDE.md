@@ -21,7 +21,11 @@ ANTHROPIC_API_KEY=sk-ant-...
 ```
 
 ### Swift Service (Capture)
-Open `localbird.xcodeproj` in Xcode and build (Cmd+B). The Electron app spawns this service automatically.
+Build via command line (user does not use Xcode):
+```bash
+xcodebuild -project localbird.xcodeproj -scheme localbird -configuration Debug -derivedDataPath DerivedData CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO build
+```
+The Electron app spawns this service automatically.
 
 **Dev path setup:** The Electron app expects Swift binary at `DerivedData/Build/Products/Debug/localbird.app` (relative to project root). If Xcode builds to global DerivedData, create a symlink:
 ```bash
@@ -101,3 +105,15 @@ Swift service exposes HTTP endpoints on localhost:9111:
 - `POST /capture/stop` → stops capture
 
 Electron renderer uses preload API (`window.api`) for IPC with main process.
+
+## Claude Code Screen Access
+
+When Localbird is running, Claude Code can view recent screen captures:
+
+```bash
+# Get path to most recent capture
+curl -s http://localhost:3001/api/frames/latest
+# Returns: {"path": "/Users/.../frames/xxx.jpg", "id": "xxx", "timestamp": "..."}
+```
+
+Then use the Read tool on the returned path to view the screenshot. This enables Claude Code to "see" what's on screen without manual screenshot sharing.

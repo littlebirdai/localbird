@@ -184,14 +184,13 @@ class ScreenCaptureService: NSObject, ObservableObject {
               Int(frontmostWindow.frame.width),
               Int(frontmostWindow.frame.height))
 
-        // Create filter for just this window
-        let filter = SCContentFilter(display: display, including: [frontmostWindow])
+        // Create filter for just this window (desktop-independent for true window capture)
+        let filter = SCContentFilter(desktopIndependentWindow: frontmostWindow)
 
         let config = SCStreamConfiguration()
-        config.width = Int(frontmostWindow.frame.width)
-        config.height = Int(frontmostWindow.frame.height)
         config.pixelFormat = kCVPixelFormatType_32BGRA
         config.captureResolution = .best
+        // Let ScreenCaptureKit determine dimensions from the window
 
         let image = try await SCScreenshotManager.captureImage(
             contentFilter: filter,
