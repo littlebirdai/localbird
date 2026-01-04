@@ -150,6 +150,12 @@ export function createServer() {
         }))
       }
 
+      // Track if client disconnected
+      let clientDisconnected = false
+      res.on('close', () => {
+        clientDisconnected = true
+      })
+
       // Use agentic loop with tools
       const result = streamText({
         model,
@@ -158,7 +164,7 @@ export function createServer() {
         tools,
         maxSteps: 5, // Allow up to 5 tool calls per request
         toolChoice: 'auto',
-        onStepFinish: async ({ stepType, toolCalls, toolResults }) => {
+        onStepFinish: async ({ stepType, toolCalls }) => {
           if (stepType === 'tool-result' && toolCalls) {
             console.log(
               '[Agent] Tool calls:',
@@ -171,13 +177,25 @@ export function createServer() {
       // Stream the response with tool call information
       res.setHeader('Content-Type', 'text/plain; charset=utf-8')
 
-      for await (const chunk of result.textStream) {
-        res.write(chunk)
+      try {
+        for await (const chunk of result.textStream) {
+          if (clientDisconnected) break
+          res.write(chunk)
+        }
+        if (!clientDisconnected) {
+          res.end()
+        }
+      } catch (streamError) {
+        // Ignore EPIPE errors from client disconnect
+        if ((streamError as NodeJS.ErrnoException).code !== 'EPIPE') {
+          throw streamError
+        }
       }
-      res.end()
     } catch (error) {
       console.error('[Server] Chat error:', error)
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' })
+      if (!res.headersSent) {
+        res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' })
+      }
     }
   })
 
