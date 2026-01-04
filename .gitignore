@@ -2,3 +2,11 @@ DerivedData/
 node_modules/
 .DS_Store
 .claude/
+/build/Build
+/build/Logs
+build/info.plist
+
+# Standalone service (contains local binary)
+standalone/localbird.app/
+standalone/.service.pid
+standalone/.env
