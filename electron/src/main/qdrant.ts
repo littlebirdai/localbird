@@ -125,4 +125,5 @@ class QdrantClient {
 }
 
 export const qdrantClient = new QdrantClient()
+export { QdrantClient }
 export type { SearchResult, CollectionInfo }

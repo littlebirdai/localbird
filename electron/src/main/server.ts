@@ -1,10 +1,11 @@
 import express, { Request, Response } from 'express'
 import { streamText, convertToModelMessages } from 'ai'
-import { anthropic } from '@ai-sdk/anthropic'
-import { google } from '@ai-sdk/google'
+import { createAnthropic } from '@ai-sdk/anthropic'
+import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import Store from 'electron-store'
 import { qdrantClient } from './qdrant'
 import { getFramesDirectory } from './utils'
+import { createTools, ToolContext } from './tools'
 import fs from 'fs'
 import path from 'path'
 
@@ -49,30 +50,44 @@ async function generateEmbedding(text: string): Promise<number[]> {
   return data.embedding?.values || []
 }
 
-async function searchRelevantFrames(query: string, limit = 5) {
-  try {
-    const embedding = await generateEmbedding(query)
-    const results = await qdrantClient.search(embedding, limit)
-    return results
-  } catch (error) {
-    console.error('[Server] Search error:', error)
-    return []
+// Create tool context for the agentic loop
+function createToolContext(): ToolContext {
+  return {
+    qdrantClient,
+    generateEmbedding
   }
 }
 
-function buildContextFromFrames(frames: any[]): string {
-  if (frames.length === 0) return ''
-
-  const context = frames
-    .map((frame, i) => {
-      const time = new Date(frame.timestamp * 1000).toLocaleString()
-      const app = frame.activeApplication || 'Unknown app'
-      return `[${i + 1}] ${time} - ${app}: ${frame.summary}`
-    })
-    .join('\n')
-
-  return `\nRelevant screen captures from your history:\n${context}\n`
+// Search for relevant frames using semantic search
+async function searchRelevantFrames(query: string, limit = 20) {
+  const embedding = await generateEmbedding(query)
+  return qdrantClient.search(embedding, limit)
 }
+
+// Agent system prompt
+const AGENT_SYSTEM_PROMPT = `You are Localbird, a personal AI assistant with access to the user's screen capture history.
+
+## Your Capabilities
+You have tools to search across screen captures. Use them to find relevant information before answering.
+
+## Available Tools
+- semantic_search: Search by meaning/topic (use for "what was I working on", "find emails", etc.)
+- time_range_search: Search by time window (use for "yesterday", "this morning", "last hour")
+- app_search: Search by application (use for "in Chrome", "in VSCode", "in Slack")
+- get_recent: Get latest captures (use for "what was I just doing")
+- get_stats: Get usage statistics (use for "how much time", "productivity summary")
+
+## Guidelines
+1. **Search before answering**: When users ask about their activities, search first.
+2. **Use multiple searches**: If initial results aren't sufficient, try different queries or time ranges.
+3. **Be specific with time**: Convert relative times ("yesterday", "this morning") to actual date ranges.
+4. **Synthesize results**: After searching, provide a helpful summary of what you found.
+5. **Acknowledge limitations**: If searches return nothing, say so and suggest alternatives.
+
+## Current Time
+${new Date().toISOString()}
+
+Use this to interpret relative time references like "today", "yesterday", "this morning".`
 
 export function createServer() {
   const app = express()
@@ -92,58 +107,68 @@ export function createServer() {
 
   app.post('/api/chat', async (req: Request, res: Response) => {
     try {
-      console.log('[Server] Received chat request:', JSON.stringify(req.body, null, 2))
+      console.log('[Server] Received chat request')
       const { messages } = req.body as { messages: ChatMessage[] }
 
-      // Helper to extract text from message
-      const getMessageText = (msg: ChatMessage): string => {
-        if (msg.content) return msg.content
-        if (msg.parts) {
-          return msg.parts
-            .filter((p) => p.type === 'text')
-            .map((p) => p.text)
-            .join('')
-        }
-        return ''
-      }
-
-      // Get the last user message for RAG
-      const lastUserMessage = [...messages].reverse().find((m) => m.role === 'user')
-      let systemContext = `You are Localbird, an AI assistant that helps users search and understand their screen capture history.
-You have access to screenshots and can help users find what they were working on, remember context, and answer questions about their activities.
-Be concise and helpful. When referencing screen captures, mention the time and application.`
-
-      // Search for relevant frames if there's a user message
-      if (lastUserMessage) {
-        const lastUserText = getMessageText(lastUserMessage)
-        const relevantFrames = await searchRelevantFrames(lastUserText)
-        if (relevantFrames.length > 0) {
-          systemContext += buildContextFromFrames(relevantFrames)
-        }
-      }
-
-      // Get the configured provider
+      // Get the configured provider and API keys
       const provider = (store.get('chatProvider') as string) || 'anthropic'
-      const claudeKey = store.get('claudeAPIKey') as string
-      const geminiKey = store.get('geminiAPIKey') as string
+      const claudeKey = (store.get('claudeAPIKey') as string) || process.env.ANTHROPIC_API_KEY
+      const geminiKey = (store.get('geminiAPIKey') as string) || process.env.GEMINI_API_KEY
 
       let model
       if (provider === 'anthropic' && claudeKey) {
+        const anthropic = createAnthropic({ apiKey: claudeKey })
         model = anthropic('claude-sonnet-4-20250514')
       } else if (geminiKey) {
-        model = google('gemini-3-flash-preview')
+        const google = createGoogleGenerativeAI({ apiKey: geminiKey })
+        model = google('gemini-2.5-flash-preview-04-17')
       } else {
         throw new Error('No API key configured')
       }
 
-      const modelMessages = await convertToModelMessages(messages)
+      // Create tool context and tools
+      const toolContext = createToolContext()
+      const tools = createTools(toolContext)
+
+      // Dynamic system prompt with current time
+      const systemPrompt = AGENT_SYSTEM_PROMPT.replace(
+        '${new Date().toISOString()}',
+        new Date().toISOString()
+      )
+
+      // Convert messages to model format
+      // Handle both assistant-ui format (with parts) and simple format (with content)
+      let modelMessages
+      try {
+        // Try assistant-ui format first
+        modelMessages = await convertToModelMessages(messages)
+      } catch {
+        // Fall back to simple format - just pass through
+        modelMessages = messages.map((m: ChatMessage) => ({
+          role: m.role,
+          content: m.content || (m.parts?.map((p) => p.text).join('') ?? '')
+        }))
+      }
+
+      // Use agentic loop with tools
       const result = streamText({
         model,
-        system: systemContext,
-        messages: modelMessages
+        system: systemPrompt,
+        messages: modelMessages,
+        tools,
+        maxSteps: 5, // Allow up to 5 tool calls per request
+        toolChoice: 'auto',
+        onStepFinish: async ({ stepType, toolCalls, toolResults }) => {
+          if (stepType === 'tool-result' && toolCalls) {
+            console.log(
+              '[Agent] Tool calls:',
+              toolCalls.map((tc) => `${tc.toolName}(${JSON.stringify(tc.args)})`)
+            )
+          }
+        }
       })
 
-      // Stream plain text for TextStreamChatTransport
+      // Stream the response with tool call information
       res.setHeader('Content-Type', 'text/plain; charset=utf-8')
 
       for await (const chunk of result.textStream) {
