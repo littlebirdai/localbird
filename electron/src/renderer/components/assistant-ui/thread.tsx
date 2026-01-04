@@ -94,6 +94,7 @@ const Composer: FC = () => {
         rows={1}
         autoFocus
         submitOnEnter
+        data-composer-input
       />
       <ThreadPrimitive.If running={false}>
         <ComposerPrimitive.Send asChild>

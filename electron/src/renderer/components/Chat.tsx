@@ -1,18 +1,22 @@
 import { Thread } from './assistant-ui/thread'
 import { ChatList } from './ChatList'
-import { useChatPersistence } from '@/hooks/useChatPersistence'
 
-export function Chat() {
-  const { currentChatId, loadChat, newChat, deleteChat } = useChatPersistence()
+interface ChatProps {
+  currentChatId: string | null
+  onSelectChat: (id: string) => void
+  onNewChat: () => void
+  onDeleteChat: (id: string) => void
+}
 
+export function Chat({ currentChatId, onSelectChat, onNewChat, onDeleteChat }: ChatProps) {
   return (
     <div className="flex h-full">
       <div className="w-64 flex-shrink-0">
         <ChatList
           currentChatId={currentChatId}
-          onSelectChat={loadChat}
-          onNewChat={newChat}
-          onDeleteChat={deleteChat}
+          onSelectChat={onSelectChat}
+          onNewChat={onNewChat}
+          onDeleteChat={onDeleteChat}
         />
       </div>
       <div className="flex-1 min-w-0">

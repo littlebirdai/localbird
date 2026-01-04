@@ -61,6 +61,14 @@ const api = {
     }
   },
 
+  // New chat event from main process (Cmd+N)
+  onNewChat: (callback: () => void) => {
+    ipcRenderer.on('new-chat', () => callback())
+    return () => {
+      ipcRenderer.removeAllListeners('new-chat')
+    }
+  },
+
   // Chat persistence
   listChats: (): Promise<ChatMetadata[]> => ipcRenderer.invoke('chats:list'),
   getChat: (id: string): Promise<Chat | null> => ipcRenderer.invoke('chats:get', id),

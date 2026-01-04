@@ -163,6 +163,97 @@ function createTray(): void {
   })
 }
 
+function createApplicationMenu(): void {
+  const template: Electron.MenuItemConstructorOptions[] = [
+    {
+      label: app.name,
+      submenu: [
+        { role: 'about' },
+        { type: 'separator' },
+        {
+          label: 'Settings...',
+          accelerator: 'CmdOrCtrl+,',
+          click: () => {
+            mainWindow?.show()
+            mainWindow?.focus()
+            mainWindow?.webContents.send('navigate', '/settings')
+          }
+        },
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit' }
+      ]
+    },
+    {
+      label: 'File',
+      submenu: [
+        {
+          label: 'New Chat',
+          accelerator: 'CmdOrCtrl+N',
+          click: () => {
+            mainWindow?.show()
+            mainWindow?.focus()
+            mainWindow?.webContents.send('new-chat')
+          }
+        },
+        { type: 'separator' },
+        { role: 'close' }
+      ]
+    },
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'selectAll' }
+      ]
+    },
+    {
+      label: 'View',
+      submenu: [
+        {
+          label: 'Chat',
+          accelerator: 'CmdOrCtrl+1',
+          click: () => {
+            mainWindow?.webContents.send('navigate', '/chat')
+          }
+        },
+        {
+          label: 'Timeline',
+          accelerator: 'CmdOrCtrl+2',
+          click: () => {
+            mainWindow?.webContents.send('navigate', '/timeline')
+          }
+        },
+        {
+          label: 'Settings',
+          accelerator: 'CmdOrCtrl+3',
+          click: () => {
+            mainWindow?.webContents.send('navigate', '/settings')
+          }
+        },
+        { type: 'separator' },
+        { role: 'reload' },
+        { role: 'forceReload' },
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' }
+      ]
+    },
+    { role: 'windowMenu' }
+  ]
+
+  const menu = Menu.buildFromTemplate(template)
+  Menu.setApplicationMenu(menu)
+}
+
 async function updateTrayMenu(): Promise<void> {
   const status = await swiftBridge.getStatus()
 
@@ -359,6 +450,7 @@ app.whenReady().then(async () => {
 
   setupIPC()
   createWindow()
+  createApplicationMenu()
   createTray()
 
   // Skip services in test mode
