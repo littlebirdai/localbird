@@ -101,3 +101,7 @@ Swift service exposes HTTP endpoints on localhost:9111:
 - `POST /capture/stop` → stops capture
 
 Electron renderer uses preload API (`window.api`) for IPC with main process.
+
+## User-Specific Notes
+
+- Screenshots for debugging are saved to `iCloud Drive/Documents/Screenshots`
