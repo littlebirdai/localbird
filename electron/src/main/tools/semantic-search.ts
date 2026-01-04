@@ -1,17 +1,14 @@
-import { tool, jsonSchema } from 'ai'
+import { tool } from 'ai'
+import { z } from 'zod/v4'
 import type { ToolContext } from './types'
 
 export function createSemanticSearchTool(context: ToolContext) {
   return tool({
     description:
       'Search screen captures by semantic similarity. Use when looking for activities, content, or topics from screen history.',
-    parameters: jsonSchema<{ query: string; limit?: number }>({
-      type: 'object',
-      properties: {
-        query: { type: 'string', description: 'Search query describing what to find' },
-        limit: { type: 'number', description: 'Maximum number of results (default 5)' }
-      },
-      required: ['query']
+    parameters: z.object({
+      query: z.string().describe('Search query describing what to find'),
+      limit: z.number().optional().describe('Maximum number of results (default 5)')
     }),
     execute: async ({ query, limit = 5 }) => {
       try {

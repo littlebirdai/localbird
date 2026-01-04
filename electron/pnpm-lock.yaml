@@ -10,10 +10,10 @@ importers:
     dependencies:
       '@ai-sdk/anthropic':
         specifier: ^3.0.2
-        version: 3.0.2(zod@3.25.76)
+        version: 3.0.2(zod@4.3.4)
       '@ai-sdk/google':
         specifier: ^3.0.2
-        version: 3.0.2(zod@3.25.76)
+        version: 3.0.2(zod@4.3.4)
       '@assistant-ui/react':
         specifier: ^0.11.53
         version: 0.11.53(@types/react-dom@18.3.7(@types/react@18.3.27))(@types/react@18.3.27)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(use-sync-external-store@1.6.0(react@18.3.1))
@@ -40,7 +40,7 @@ importers:
         version: 1.2.8(@types/react-dom@18.3.7(@types/react@18.3.27))(@types/react@18.3.27)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       ai:
         specifier: ^6.0.6
-        version: 6.0.6(zod@3.25.76)
+        version: 6.0.6(zod@4.3.4)
       class-variance-authority:
         specifier: ^0.7.0
         version: 0.7.1
@@ -78,8 +78,11 @@ importers:
         specifier: ^2.5.4
         version: 2.6.0
       zod:
-        specifier: ^3.23.8
-        version: 3.25.76
+        specifier: ^4.3.4
+        version: 4.3.4
+      zod-to-json-schema:
+        specifier: ^3.25.1
+        version: 3.25.1(zod@4.3.4)
     devDependencies:
       '@playwright/test':
         specifier: ^1.57.0
@@ -3646,6 +3649,11 @@ packages:
     resolution: {integrity: sha512-9qv4rlDiopXg4E69k+vMHjNN63YFMe9sZMrdlvKnCjlCRWeCBswPPMPUfx+ipsAWq1LXHe70RcbaHdJJpS6hyQ==}
     engines: {node: '>= 10'}
 
+  zod-to-json-schema@3.25.1:
+    resolution: {integrity: sha512-pM/SU9d3YAggzi6MtR4h7ruuQlqKtad8e9S0fmxcMi+ueAK5Korys/aWcV9LIIHTVbj01NdzxcnXSN+O74ZIVA==}
+    peerDependencies:
+      zod: ^3.25 || ^4
+
   zod@3.25.76:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
 
@@ -3677,11 +3685,11 @@ snapshots:
 
   7zip-bin@5.2.0: {}
 
-  '@ai-sdk/anthropic@3.0.2(zod@3.25.76)':
+  '@ai-sdk/anthropic@3.0.2(zod@4.3.4)':
     dependencies:
       '@ai-sdk/provider': 3.0.1
-      '@ai-sdk/provider-utils': 4.0.2(zod@3.25.76)
-      zod: 3.25.76
+      '@ai-sdk/provider-utils': 4.0.2(zod@4.3.4)
+      zod: 4.3.4
 
   '@ai-sdk/gateway@2.0.24(zod@4.3.4)':
     dependencies:
@@ -3690,18 +3698,18 @@ snapshots:
       '@vercel/oidc': 3.0.5
       zod: 4.3.4
 
-  '@ai-sdk/gateway@3.0.5(zod@3.25.76)':
+  '@ai-sdk/gateway@3.0.5(zod@4.3.4)':
     dependencies:
       '@ai-sdk/provider': 3.0.1
-      '@ai-sdk/provider-utils': 4.0.2(zod@3.25.76)
+      '@ai-sdk/provider-utils': 4.0.2(zod@4.3.4)
       '@vercel/oidc': 3.0.5
-      zod: 3.25.76
+      zod: 4.3.4
 
-  '@ai-sdk/google@3.0.2(zod@3.25.76)':
+  '@ai-sdk/google@3.0.2(zod@4.3.4)':
     dependencies:
       '@ai-sdk/provider': 3.0.1
-      '@ai-sdk/provider-utils': 4.0.2(zod@3.25.76)
-      zod: 3.25.76
+      '@ai-sdk/provider-utils': 4.0.2(zod@4.3.4)
+      zod: 4.3.4
 
   '@ai-sdk/provider-utils@3.0.20(zod@4.3.4)':
     dependencies:
@@ -3710,12 +3718,12 @@ snapshots:
       eventsource-parser: 3.0.6
       zod: 4.3.4
 
-  '@ai-sdk/provider-utils@4.0.2(zod@3.25.76)':
+  '@ai-sdk/provider-utils@4.0.2(zod@4.3.4)':
     dependencies:
       '@ai-sdk/provider': 3.0.1
       '@standard-schema/spec': 1.1.0
       eventsource-parser: 3.0.6
-      zod: 3.25.76
+      zod: 4.3.4
 
   '@ai-sdk/provider@2.0.1':
     dependencies:
@@ -4736,13 +4744,13 @@ snapshots:
       '@opentelemetry/api': 1.9.0
       zod: 4.3.4
 
-  ai@6.0.6(zod@3.25.76):
+  ai@6.0.6(zod@4.3.4):
     dependencies:
-      '@ai-sdk/gateway': 3.0.5(zod@3.25.76)
+      '@ai-sdk/gateway': 3.0.5(zod@4.3.4)
       '@ai-sdk/provider': 3.0.1
-      '@ai-sdk/provider-utils': 4.0.2(zod@3.25.76)
+      '@ai-sdk/provider-utils': 4.0.2(zod@4.3.4)
       '@opentelemetry/api': 1.9.0
-      zod: 3.25.76
+      zod: 4.3.4
 
   ajv-formats@3.0.1(ajv@8.17.1):
     optionalDependencies:
@@ -7680,6 +7688,10 @@ snapshots:
       archiver-utils: 3.0.4
       compress-commons: 4.1.2
       readable-stream: 3.6.2
+
+  zod-to-json-schema@3.25.1(zod@4.3.4):
+    dependencies:
+      zod: 4.3.4
 
   zod@3.25.76: {}
 

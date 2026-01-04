@@ -116,19 +116,21 @@ export function createServer() {
       const geminiKey = (store.get('geminiAPIKey') as string) || process.env.GEMINI_API_KEY
 
       let model
+      // Prefer Claude for chat (tools disabled due to AI SDK v6 schema bug)
       if (provider === 'anthropic' && claudeKey) {
         const anthropic = createAnthropic({ apiKey: claudeKey })
         model = anthropic('claude-sonnet-4-20250514')
       } else if (geminiKey) {
         const google = createGoogleGenerativeAI({ apiKey: geminiKey })
-        model = google('gemini-2.5-flash-preview-04-17')
+        model = google('gemini-2.0-flash')
       } else {
         throw new Error('No API key configured')
       }
 
-      // Create tool context and tools
-      const toolContext = createToolContext()
-      const tools = createTools(toolContext)
+      // TODO: Re-enable tools when AI SDK v6 fixes Anthropic schema bug
+      // See: https://github.com/vercel/ai/issues/8784
+      // const toolContext = createToolContext()
+      // const tools = createTools(toolContext)
 
       // Dynamic system prompt with current time
       const systemPrompt = AGENT_SYSTEM_PROMPT.replace(
@@ -156,22 +158,15 @@ export function createServer() {
         clientDisconnected = true
       })
 
-      // Use agentic loop with tools
+      // Basic chat without tools (tools disabled due to AI SDK v6 bug)
       const result = streamText({
         model,
         system: systemPrompt,
-        messages: modelMessages,
-        tools,
-        maxSteps: 5, // Allow up to 5 tool calls per request
-        toolChoice: 'auto',
-        onStepFinish: async ({ stepType, toolCalls }) => {
-          if (stepType === 'tool-result' && toolCalls) {
-            console.log(
-              '[Agent] Tool calls:',
-              toolCalls.map((tc) => `${tc.toolName}(${JSON.stringify(tc.args)})`)
-            )
-          }
-        }
+        messages: modelMessages
+        // TODO: Re-enable when AI SDK v6 fixes the Anthropic tools schema bug
+        // tools,
+        // maxSteps: 5,
+        // toolChoice: 'auto'
       })
 
       // Stream the response with tool call information

@@ -1,20 +1,13 @@
-import { tool, jsonSchema } from 'ai'
+import { tool } from 'ai'
+import { z } from 'zod/v4'
 import type { ToolContext } from './types'
 
 export function createGetStatsTool(context: ToolContext) {
   return tool({
     description:
       'Get usage statistics and activity summary for a time period. Use when user asks about productivity, time spent on apps, or daily/weekly summaries.',
-    parameters: jsonSchema<{ period: 'today' | 'yesterday' | 'week' | 'month' }>({
-      type: 'object',
-      properties: {
-        period: {
-          type: 'string',
-          enum: ['today', 'yesterday', 'week', 'month'],
-          description: 'Time period for statistics'
-        }
-      },
-      required: ['period']
+    parameters: z.object({
+      period: z.enum(['today', 'yesterday', 'week', 'month']).describe('Time period for statistics')
     }),
     execute: async ({ period }) => {
       try {

@@ -1,25 +1,15 @@
-import { tool, jsonSchema } from 'ai'
+import { tool } from 'ai'
+import { z } from 'zod/v4'
 import type { ToolContext } from './types'
 
 export function createAppSearchTool(context: ToolContext) {
   return tool({
     description:
       'Search screen captures filtered by application name. Optionally combine with semantic search. Use when user asks about specific apps like "Chrome", "VSCode", "Slack", etc.',
-    parameters: jsonSchema<{ appName: string; query?: string; limit?: number }>({
-      type: 'object',
-      properties: {
-        appName: {
-          type: 'string',
-          description:
-            'Application name to filter by (partial match, case-insensitive). Examples: "chrome", "vscode", "slack", "xcode"'
-        },
-        query: {
-          type: 'string',
-          description: 'Optional: semantic search query to further filter results'
-        },
-        limit: { type: 'number', description: 'Maximum number of results (default 10)' }
-      },
-      required: ['appName']
+    parameters: z.object({
+      appName: z.string().describe('Application name to filter by (partial match, case-insensitive). Examples: "chrome", "vscode", "slack", "xcode"'),
+      query: z.string().optional().describe('Optional: semantic search query to further filter results'),
+      limit: z.number().optional().describe('Maximum number of results (default 10)')
     }),
     execute: async ({ appName, query, limit = 10 }) => {
       try {

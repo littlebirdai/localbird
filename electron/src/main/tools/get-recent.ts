@@ -1,16 +1,13 @@
-import { tool, jsonSchema } from 'ai'
+import { tool } from 'ai'
+import { z } from 'zod/v4'
 import type { ToolContext } from './types'
 
 export function createGetRecentTool(context: ToolContext) {
   return tool({
     description:
       'Get the most recent screen captures. Use when user asks "what was I just doing?", "show recent activity", or needs context about their latest work.',
-    parameters: jsonSchema<{ limit?: number }>({
-      type: 'object',
-      properties: {
-        limit: { type: 'number', description: 'Number of recent captures to return (default 10)' }
-      },
-      required: []
+    parameters: z.object({
+      limit: z.number().optional().describe('Number of recent captures to return (default 10)')
     }),
     execute: async ({ limit = 10 }) => {
       try {

@@ -1,24 +1,15 @@
-import { tool, jsonSchema } from 'ai'
+import { tool } from 'ai'
+import { z } from 'zod/v4'
 import type { ToolContext } from './types'
 
 export function createTimeRangeSearchTool(context: ToolContext) {
   return tool({
     description:
       'Search screen captures within a specific time range. Use for queries like "yesterday", "this morning", "last hour", or specific date ranges.',
-    parameters: jsonSchema<{ startTime: string; endTime: string; limit?: number }>({
-      type: 'object',
-      properties: {
-        startTime: {
-          type: 'string',
-          description: 'Start of time range (ISO 8601 format, e.g., "2024-01-15T09:00:00Z")'
-        },
-        endTime: {
-          type: 'string',
-          description: 'End of time range (ISO 8601 format, e.g., "2024-01-15T17:00:00Z")'
-        },
-        limit: { type: 'number', description: 'Maximum number of results (default 20)' }
-      },
-      required: ['startTime', 'endTime']
+    parameters: z.object({
+      startTime: z.string().describe('Start of time range (ISO 8601 format, e.g., "2024-01-15T09:00:00Z")'),
+      endTime: z.string().describe('End of time range (ISO 8601 format, e.g., "2024-01-15T17:00:00Z")'),
+      limit: z.number().optional().describe('Maximum number of results (default 20)')
     }),
     execute: async ({ startTime, endTime, limit = 20 }) => {
       try {
