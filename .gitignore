@@ -10,3 +10,4 @@ build/info.plist
 standalone/localbird.app/
 standalone/.service.pid
 standalone/.env
+/build
