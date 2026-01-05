@@ -17,6 +17,28 @@ export interface Settings {
   autoStartCapture: boolean
 }
 
+export interface ChatMessage {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  createdAt: number
+}
+
+export interface Chat {
+  id: string
+  title: string
+  createdAt: number
+  updatedAt: number
+  messages: ChatMessage[]
+}
+
+export interface ChatMetadata {
+  id: string
+  title: string
+  createdAt: number
+  updatedAt: number
+}
+
 const api = {
   // Capture control
   getStatus: (): Promise<ServiceStatus> => ipcRenderer.invoke('get-status'),
@@ -37,7 +59,21 @@ const api = {
     return () => {
       ipcRenderer.removeAllListeners('navigate')
     }
-  }
+  },
+
+  // New chat event from main process (Cmd+N)
+  onNewChat: (callback: () => void) => {
+    ipcRenderer.on('new-chat', () => callback())
+    return () => {
+      ipcRenderer.removeAllListeners('new-chat')
+    }
+  },
+
+  // Chat persistence
+  listChats: (): Promise<ChatMetadata[]> => ipcRenderer.invoke('chats:list'),
+  getChat: (id: string): Promise<Chat | null> => ipcRenderer.invoke('chats:get', id),
+  saveChat: (chat: Chat): Promise<{ success: boolean }> => ipcRenderer.invoke('chats:save', chat),
+  deleteChat: (id: string): Promise<{ success: boolean }> => ipcRenderer.invoke('chats:delete', id)
 }
 
 contextBridge.exposeInMainWorld('api', api)

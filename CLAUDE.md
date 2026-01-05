@@ -110,6 +110,7 @@ Electron renderer uses preload API (`window.api`) for IPC with main process.
 ## Common Errors to Avoid
 
 - When testing Gemini API, use `gemini-2.5-flash` or `gemini-3-flash-preview`, not `gemini-2.0-flash` (older models have stricter/different rate limits)
+- **Chat model must be `claude-opus-4-5`** - do NOT change to Sonnet or other models in `server.ts` (the date suffix like `-20250514` causes 404 errors). If you must fall back, use `claude-sonnet-4-5` NOT `claude-sonnet-4` - never fall back to old models.
 
 ## User-Specific Notes
 
