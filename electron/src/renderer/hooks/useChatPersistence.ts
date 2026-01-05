@@ -110,6 +110,9 @@ export function useChatPersistence() {
   const loadChat = useCallback(async (chatId: string) => {
     if (!window.api) return
 
+    // Don't reload same chat
+    if (chatId === currentChatId) return
+
     // Save current chat first if it has messages
     const currentMessages = convertMessages()
     if (currentMessages.length > 0 && currentChatId) {
@@ -119,18 +122,24 @@ export function useChatPersistence() {
     const chat = await window.api.getChat(chatId)
     if (!chat) return
 
-    // Reset thread and import messages
     // Convert our messages back to ThreadMessageLike format
     const threadMessages = chat.messages.map(m => ({
       role: m.role as 'user' | 'assistant',
       content: [{ type: 'text' as const, text: m.content }]
     }))
 
-    // Reset with the loaded messages
-    threadRuntime.reset({ initialMessages: threadMessages })
-
+    // Update state first
     setCurrentChatId(chatId)
     lastMessageCountRef.current = chat.messages.length
+
+    // Reset with the loaded messages
+    // Note: AI SDK transport may not fully support this - messages display but can't continue
+    try {
+      threadRuntime.reset(threadMessages)
+    } catch (e) {
+      console.error('Failed to reset thread:', e)
+      threadRuntime.reset()
+    }
   }, [currentChatId, threadRuntime, saveChat])
 
   // Start a new chat

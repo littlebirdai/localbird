@@ -8,7 +8,6 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { AssistantRuntimeProvider } from '@assistant-ui/react'
 import { useChatRuntime } from '@assistant-ui/react-ai-sdk'
 import { TextStreamChatTransport } from 'ai'
-import { useChatPersistence } from '@/hooks/useChatPersistence'
 
 type View = 'chat' | 'timeline' | 'settings'
 
@@ -33,19 +32,11 @@ export default function App() {
 // Inner component that has access to the AssistantRuntime context
 function AppContent() {
   const [currentView, setCurrentView] = useState<View>('chat')
+  const [currentChatId, setCurrentChatId] = useState<string | null>(null)
   const [status, setStatus] = useState<{
     isRunning: boolean
     frameCount: number
   }>({ isRunning: false, frameCount: 0 })
-
-  // Chat persistence hook - must be inside AssistantRuntimeProvider
-  const chatPersistence = useChatPersistence()
-
-  // Handle new chat from keyboard shortcut (Cmd+N)
-  const handleNewChat = useCallback(() => {
-    setCurrentView('chat')
-    chatPersistence.newChat()
-  }, [chatPersistence])
 
   // Focus composer input
   const focusComposer = useCallback(() => {
@@ -84,17 +75,11 @@ function AppContent() {
       else setCurrentView('chat')
     })
 
-    // Listen for new chat from main process (Cmd+N)
-    const unsubNewChat = window.api.onNewChat?.(() => {
-      handleNewChat()
-    })
-
     return () => {
       clearInterval(interval)
       unsubNavigate()
-      unsubNewChat?.()
     }
-  }, [handleNewChat])
+  }, [])
 
   // Keyboard shortcuts (Cmd+K to focus, Escape to blur)
   useEffect(() => {
@@ -117,6 +102,31 @@ function AppContent() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [focusComposer])
+
+  // TODO: Chat switching not working - AI SDK's TextStreamChatTransport doesn't support loading historical messages
+  // See: https://github.com/assistant-ui/assistant-ui/issues/2365
+  // Options to fix:
+  // 1. Use ExternalStoreRuntime with custom message state management
+  // 2. Wait for AI SDK to add support for message import
+  // 3. Build custom runtime that handles persistence
+  const handleSelectChat = useCallback((id: string) => {
+    setCurrentChatId(id)
+    // Currently just tracks selection visually - messages don't load
+  }, [])
+
+  const handleNewChat = useCallback(() => {
+    setCurrentChatId(null)
+    setCurrentView('chat')
+  }, [])
+
+  const handleDeleteChat = useCallback(async (id: string) => {
+    if (window.api) {
+      await window.api.deleteChat(id)
+      if (id === currentChatId) {
+        setCurrentChatId(null)
+      }
+    }
+  }, [currentChatId])
 
   return (
     <div className="flex h-screen bg-background">
@@ -161,10 +171,10 @@ function AppContent() {
       <main className="flex-1 overflow-hidden">
         {currentView === 'chat' && (
           <Chat
-            currentChatId={chatPersistence.currentChatId}
-            onSelectChat={chatPersistence.loadChat}
-            onNewChat={chatPersistence.newChat}
-            onDeleteChat={chatPersistence.deleteChat}
+            currentChatId={currentChatId}
+            onSelectChat={handleSelectChat}
+            onNewChat={handleNewChat}
+            onDeleteChat={handleDeleteChat}
           />
         )}
         {currentView === 'timeline' && <Timeline />}
