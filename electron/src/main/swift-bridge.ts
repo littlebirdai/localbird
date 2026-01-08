@@ -58,6 +58,8 @@ interface ServiceConfig {
   claudeAPIKey?: string
   openaiAPIKey?: string
   captureInterval?: number
+  enableFullScreenCaptures?: boolean
+  fullScreenCaptureInterval?: number
   activeVisionProvider?: string
   qdrantHost?: string
   qdrantPort?: number

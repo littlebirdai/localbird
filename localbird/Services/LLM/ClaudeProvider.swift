@@ -115,18 +115,29 @@ class ClaudeProvider: LLMProvider {
 
     private func buildAnalysisPrompt(_ userPrompt: String) -> String {
         """
-        Analyze this screenshot and provide structured information.
+        Analyze this screenshot and extract data in a semantically meaningful way.
 
         \(userPrompt)
+
+        IMPORTANT: Extract structured data where possible:
+        - For messaging apps (iMessage, Slack, Discord, Teams, etc.): Extract messages with sender name, timestamp, and message content
+        - For email clients: Extract sender, subject, date, and preview text
+        - For social media: Extract posts with author, content, and engagement metrics
+        - For documents/editors: Extract document title and key content
+        - For terminals/code: Extract commands, output, or code snippets
+        - For calendars: Extract event names, times, and participants
+        - For browsers: Extract page title, URL if visible, and main content
+
+        Structure the visibleText array to preserve semantic relationships (e.g., "John Doe (2:30 PM): Hello there" for messages).
 
         Respond with ONLY a JSON object (no markdown, no explanation) matching this schema:
         {
             "summary": "Brief description of what's shown",
             "activeApplication": "Name of the main application visible",
             "userActivity": "What the user appears to be doing",
-            "visibleText": ["Array of significant text visible on screen"],
+            "visibleText": ["Array of significant text, structured semantically where applicable"],
             "uiElements": ["Array of notable UI elements"],
-            "metadata": {"key": "value pairs for additional context"}
+            "metadata": {"key": "value pairs for additional context like conversation_participants, email_thread_subject, etc."}
         }
         """
     }

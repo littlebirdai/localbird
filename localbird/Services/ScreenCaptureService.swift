@@ -28,6 +28,11 @@ class ScreenCaptureService: NSObject, ObservableObject {
     private var captureTimer: Timer?
     private var captureInterval: TimeInterval = 5.0 // seconds between captures
 
+    // Full screen capture settings
+    private var fullScreenCaptureTimer: Timer?
+    private var fullScreenCaptureInterval: TimeInterval = 1.0
+    private var enableFullScreenCaptures: Bool = true
+
     /// Callback now includes optional capture metadata
     var onFrameCaptured: ((Data, Date, CaptureMetadata?) -> Void)?
 
@@ -75,6 +80,11 @@ class ScreenCaptureService: NSObject, ObservableObject {
             // Start periodic capture timer
             startCaptureTimer()
 
+            // Start full screen capture timer if enabled
+            if enableFullScreenCaptures {
+                startFullScreenCaptureTimer()
+            }
+
         } catch {
             captureError = "Failed to start capture: \(error.localizedDescription)"
             NSLog("[ScreenCapture] Error: %@", error.localizedDescription)
@@ -84,6 +94,9 @@ class ScreenCaptureService: NSObject, ObservableObject {
     func stopCapture() {
         captureTimer?.invalidate()
         captureTimer = nil
+
+        fullScreenCaptureTimer?.invalidate()
+        fullScreenCaptureTimer = nil
 
         Task {
             try? await stream?.stopCapture()
@@ -100,6 +113,20 @@ class ScreenCaptureService: NSObject, ObservableObject {
         }
     }
 
+    func setFullScreenCaptureSettings(enabled: Bool, interval: TimeInterval) {
+        enableFullScreenCaptures = enabled
+        fullScreenCaptureInterval = interval
+
+        if isCapturing {
+            if enabled {
+                startFullScreenCaptureTimer()
+            } else {
+                fullScreenCaptureTimer?.invalidate()
+                fullScreenCaptureTimer = nil
+            }
+        }
+    }
+
     private func startCaptureTimer() {
         NSLog("[ScreenCapture] Setting up timer...")
         captureTimer?.invalidate()
@@ -113,6 +140,33 @@ class ScreenCaptureService: NSObject, ObservableObject {
         NSLog("[ScreenCapture] Timer created, firing immediately...")
         Task {
             await captureFrame(trigger: .timer)
+        }
+    }
+
+    private func startFullScreenCaptureTimer() {
+        NSLog("[ScreenCapture] Setting up full screen capture timer with interval: %f", fullScreenCaptureInterval)
+        fullScreenCaptureTimer?.invalidate()
+        fullScreenCaptureTimer = Timer.scheduledTimer(withTimeInterval: fullScreenCaptureInterval, repeats: true) { [weak self] _ in
+            NSLog("[ScreenCapture] Full screen timer fired!")
+            Task { @MainActor in
+                await self?.captureFullScreenOnly()
+            }
+        }
+    }
+
+    /// Capture only full screen (for periodic context captures)
+    private func captureFullScreenOnly() async {
+        do {
+            let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+
+            guard let display = content.displays.first else {
+                NSLog("[ScreenCapture] No display for full screen capture")
+                return
+            }
+
+            try await captureFullScreen(display: display, trigger: .fullScreen)
+        } catch {
+            NSLog("[ScreenCapture] Full screen capture error: %@", error.localizedDescription)
         }
     }
 

@@ -213,6 +213,8 @@ async function startServices(): Promise<void> {
       claudeAPIKey: getApiKey('claudeAPIKey', 'ANTHROPIC_API_KEY'),
       openaiAPIKey: getApiKey('openaiAPIKey', 'OPENAI_API_KEY'),
       captureInterval: (store.get('captureInterval') as number) || 5,
+      enableFullScreenCaptures: store.get('enableFullScreenCaptures', true) as boolean,
+      fullScreenCaptureInterval: (store.get('fullScreenCaptureInterval') as number) || 1,
       activeVisionProvider: (store.get('activeVisionProvider') as string) || 'gemini'
     }
 
@@ -268,6 +270,8 @@ function setupIPC(): void {
       claudeAPIKey: store.get('claudeAPIKey', ''),
       openaiAPIKey: store.get('openaiAPIKey', ''),
       captureInterval: store.get('captureInterval', 5),
+      enableFullScreenCaptures: store.get('enableFullScreenCaptures', true),
+      fullScreenCaptureInterval: store.get('fullScreenCaptureInterval', 1),
       activeVisionProvider: store.get('activeVisionProvider', 'gemini'),
       chatProvider: store.get('chatProvider', 'anthropic'),
       autoStartCapture: store.get('autoStartCapture', true)
@@ -285,6 +289,8 @@ function setupIPC(): void {
       claudeAPIKey: settings.claudeAPIKey,
       openaiAPIKey: settings.openaiAPIKey,
       captureInterval: settings.captureInterval,
+      enableFullScreenCaptures: settings.enableFullScreenCaptures,
+      fullScreenCaptureInterval: settings.fullScreenCaptureInterval,
       activeVisionProvider: settings.activeVisionProvider
     })
 

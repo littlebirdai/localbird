@@ -10,6 +10,7 @@ import AppKit
 enum CaptureTrigger: String, Codable {
     case timer           // Regular interval capture
     case appChanged      // Frontmost app changed
+    case fullScreen      // Periodic full screen capture for context
     case scroll          // Future: scroll detected
     case manual          // User requested capture
 }

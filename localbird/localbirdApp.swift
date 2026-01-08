@@ -103,6 +103,8 @@ class ServiceDelegate: NSObject, NSApplicationDelegate {
             claudeAPIKey: config.claudeAPIKey ?? "",
             openaiAPIKey: config.openaiAPIKey ?? "",
             captureInterval: config.captureInterval ?? 5.0,
+            enableFullScreenCaptures: config.enableFullScreenCaptures ?? true,
+            fullScreenCaptureInterval: config.fullScreenCaptureInterval ?? 1.0,
             activeVisionProvider: config.activeVisionProvider ?? "gemini",
             qdrantHost: config.qdrantHost ?? "localhost",
             qdrantPort: config.qdrantPort ?? 6333

@@ -8,6 +8,8 @@ interface SettingsData {
   claudeAPIKey: string
   openaiAPIKey: string
   captureInterval: number
+  enableFullScreenCaptures: boolean
+  fullScreenCaptureInterval: number
   activeVisionProvider: string
   chatProvider: string
   autoStartCapture: boolean
@@ -19,6 +21,8 @@ export function Settings() {
     claudeAPIKey: '',
     openaiAPIKey: '',
     captureInterval: 5,
+    enableFullScreenCaptures: true,
+    fullScreenCaptureInterval: 1,
     activeVisionProvider: 'gemini',
     chatProvider: 'anthropic',
     autoStartCapture: true
@@ -152,6 +156,31 @@ export function Settings() {
               onChange={(checked) => updateSetting('autoStartCapture', checked)}
             />
           </Field>
+
+          <div className="pt-4 border-t">
+            <Field label="Full Screen Captures" hint="Periodically capture the entire screen for additional context">
+              <Toggle
+                checked={settings.enableFullScreenCaptures}
+                onChange={(checked) => updateSetting('enableFullScreenCaptures', checked)}
+              />
+            </Field>
+
+            {settings.enableFullScreenCaptures && (
+              <div className="mt-4 ml-4">
+                <Field label="Full Screen Interval (seconds)">
+                  <input
+                    type="number"
+                    min="0.5"
+                    max="10"
+                    step="0.5"
+                    value={settings.fullScreenCaptureInterval}
+                    onChange={(e) => updateSetting('fullScreenCaptureInterval', Number(e.target.value))}
+                    className="w-24 px-3 py-2 rounded-lg border bg-background text-sm outline-none focus:ring-2 focus:ring-ring"
+                  />
+                </Field>
+              </div>
+            )}
+          </div>
         </Section>
 
         {/* API Keys */}

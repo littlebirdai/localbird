@@ -196,6 +196,8 @@ struct ServiceConfig: Codable {
     let claudeAPIKey: String?
     let openaiAPIKey: String?
     let captureInterval: Double?
+    let enableFullScreenCaptures: Bool?
+    let fullScreenCaptureInterval: Double?
     let activeVisionProvider: String?
     let qdrantHost: String?
     let qdrantPort: Int?

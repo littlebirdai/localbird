@@ -10,6 +10,8 @@ struct SettingsView: View {
     @AppStorage("claudeAPIKey") private var claudeAPIKey = ""
     @AppStorage("openaiAPIKey") private var openaiAPIKey = ""
     @AppStorage("captureInterval") private var captureInterval = 5.0
+    @AppStorage("enableFullScreenCaptures") private var enableFullScreenCaptures = true
+    @AppStorage("fullScreenCaptureInterval") private var fullScreenCaptureInterval = 1.0
     @AppStorage("qdrantHost") private var qdrantHost = "localhost"
     @AppStorage("qdrantPort") private var qdrantPort = 6333
     @AppStorage("activeVisionProvider") private var activeVisionProvider = "gemini"
@@ -45,7 +47,7 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
                         Text("Capture Interval:")
-                            .frame(width: 120, alignment: .leading)
+                            .frame(width: 150, alignment: .leading)
                         TextField("", value: $captureInterval, format: .number)
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 60)
@@ -55,7 +57,7 @@ struct SettingsView: View {
 
                     HStack {
                         Text("Vision Provider:")
-                            .frame(width: 120, alignment: .leading)
+                            .frame(width: 150, alignment: .leading)
                         Picker("", selection: $activeVisionProvider) {
                             Text("Gemini").tag("gemini")
                             Text("Claude").tag("claude")
@@ -63,6 +65,29 @@ struct SettingsView: View {
                         }
                         .labelsHidden()
                         .frame(width: 120)
+                    }
+
+                    Divider()
+
+                    Toggle("Full Screen Captures", isOn: $enableFullScreenCaptures)
+                        .toggleStyle(.checkbox)
+
+                    if enableFullScreenCaptures {
+                        HStack {
+                            Text("Full Screen Interval:")
+                                .frame(width: 150, alignment: .leading)
+                            TextField("", value: $fullScreenCaptureInterval, format: .number)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 60)
+                            Text("seconds")
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.leading, 20)
+
+                        Text("Captures full screen periodically for additional context")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding(.leading, 20)
                     }
                 }
                 .padding(8)

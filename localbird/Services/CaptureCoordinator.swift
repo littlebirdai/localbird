@@ -70,6 +70,16 @@ class CaptureCoordinator: ObservableObject {
 
         // Configure capture interval
         screenCaptureService.setCaptureInterval(settings.captureInterval)
+
+        // Configure full screen capture settings
+        screenCaptureService.setFullScreenCaptureSettings(
+            enabled: settings.enableFullScreenCaptures,
+            interval: settings.fullScreenCaptureInterval
+        )
+        NSLog("[Localbird] Full screen captures: %@, interval: %f",
+              settings.enableFullScreenCaptures ? "enabled" : "disabled",
+              settings.fullScreenCaptureInterval)
+
         NSLog("[Localbird] Configuration complete")
     }
 
@@ -264,6 +274,8 @@ struct AppSettings {
     let claudeAPIKey: String
     let openaiAPIKey: String
     let captureInterval: TimeInterval
+    let enableFullScreenCaptures: Bool
+    let fullScreenCaptureInterval: TimeInterval
     let activeVisionProvider: String
     let qdrantHost: String
     let qdrantPort: Int
@@ -274,6 +286,8 @@ struct AppSettings {
             claudeAPIKey: UserDefaults.standard.string(forKey: "claudeAPIKey") ?? "",
             openaiAPIKey: UserDefaults.standard.string(forKey: "openaiAPIKey") ?? "",
             captureInterval: UserDefaults.standard.double(forKey: "captureInterval").nonZero ?? 5.0,
+            enableFullScreenCaptures: UserDefaults.standard.object(forKey: "enableFullScreenCaptures") as? Bool ?? true,
+            fullScreenCaptureInterval: UserDefaults.standard.double(forKey: "fullScreenCaptureInterval").nonZero ?? 1.0,
             activeVisionProvider: UserDefaults.standard.string(forKey: "activeVisionProvider") ?? "gemini",
             qdrantHost: UserDefaults.standard.string(forKey: "qdrantHost") ?? "localhost",
             qdrantPort: UserDefaults.standard.integer(forKey: "qdrantPort").nonZero ?? 6333
