@@ -130,12 +130,12 @@ function AppContent() {
 
   return (
     <div className="flex h-screen bg-background">
-      {/* Sidebar */}
-      <div className="w-16 flex flex-col items-center py-4 border-r bg-muted/30">
-        {/* Drag region for window */}
-        <div className="h-8 w-full app-drag-region" />
+      {/* Sidebar - w-[72px] to clear traffic lights */}
+      <div className="w-[72px] flex flex-col items-center border-r bg-muted/30">
+        {/* Drag region for window - space for traffic lights */}
+        <div className="h-14 w-full app-drag-region" />
 
-        <nav className="flex flex-col items-center gap-2 mt-4">
+        <nav className="flex flex-col items-center gap-2 mt-2">
           <NavButton
             icon={<MessageSquare className="w-5 h-5" />}
             active={currentView === 'chat'}

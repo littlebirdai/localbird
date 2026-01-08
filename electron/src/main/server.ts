@@ -330,6 +330,21 @@ export function createServer() {
     }
   })
 
+  // Get frames for timeline scrubber (all frames in time range, sorted by time)
+  app.get('/api/frames/timeline', async (req: Request, res: Response) => {
+    try {
+      const hoursBack = parseInt(req.query.hours as string) || 24
+      const now = new Date()
+      const start = new Date(now.getTime() - hoursBack * 60 * 60 * 1000)
+      const frames = await qdrantClient.searchByTimeRange(start, now, 1000)
+      // Sort by timestamp ascending for timeline display
+      frames.sort((a, b) => a.timestamp - b.timestamp)
+      res.json({ frames, start: start.getTime() / 1000, end: now.getTime() / 1000 })
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' })
+    }
+  })
+
   // Get latest frame path (for Claude Code to read directly)
   app.get('/api/frames/latest', (_req: Request, res: Response) => {
     try {
