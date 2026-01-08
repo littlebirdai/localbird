@@ -1,6 +1,7 @@
 import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain } from 'electron'
 import { join } from 'path'
-import { spawn, ChildProcess, execSync } from 'child_process'
+import { spawn, ChildProcess } from 'child_process'
+import { existsSync, mkdirSync, writeFileSync } from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import Store from 'electron-store'
 import { config as dotenvConfig } from 'dotenv'
@@ -10,6 +11,8 @@ import { qdrantClient } from './qdrant'
 
 // Load .env file for local development
 dotenvConfig()
+
+let qdrantProcess: ChildProcess | null = null
 
 const store = new Store()
 
@@ -45,6 +48,27 @@ function getApiKey(key: string, envVar: string): string {
   return (store.get(key) as string) || ''
 }
 
+function getQdrantPath(): string | null {
+  const arch = process.arch === 'arm64' ? 'arm64' : 'x64'
+  const binaryName = `qdrant-${arch}`
+
+  // Production: bundled in app Resources
+  const resourcesPath = process.resourcesPath || ''
+  const bundledPath = join(resourcesPath, 'bin', binaryName)
+  if (existsSync(bundledPath)) {
+    return bundledPath
+  }
+
+  // Development: in electron/bin
+  const devPath = join(__dirname, '../../..', 'bin', binaryName)
+  if (existsSync(devPath)) {
+    return devPath
+  }
+
+  console.log('[Main] Qdrant binary not found at:', bundledPath, 'or', devPath)
+  return null
+}
+
 async function startQdrant(): Promise<void> {
   // Check if Qdrant is already running
   const isRunning = await qdrantClient.healthCheck()
@@ -53,33 +77,58 @@ async function startQdrant(): Promise<void> {
     return
   }
 
-  // Check if Docker is available
-  try {
-    execSync('docker info', { stdio: 'ignore' })
-  } catch {
-    console.log('[Main] Docker not available, skipping Qdrant auto-start')
+  const qdrantPath = getQdrantPath()
+  if (!qdrantPath) {
+    console.log('[Main] Qdrant binary not found, skipping auto-start')
     return
   }
 
-  console.log('[Main] Starting Qdrant container...')
-
-  // Check if container exists but stopped
-  try {
-    execSync('docker start localbird-qdrant', { stdio: 'ignore' })
-    console.log('[Main] Started existing Qdrant container')
-    return
-  } catch {
-    // Container doesn't exist, create it
+  // Set up storage directory
+  const appDataPath = app.getPath('userData')
+  const storagePath = join(appDataPath, 'qdrant-storage')
+  if (!existsSync(storagePath)) {
+    mkdirSync(storagePath, { recursive: true })
   }
 
-  // Start new Qdrant container
-  try {
-    execSync('docker run --name localbird-qdrant -p 6333:6333 -d qdrant/qdrant', { stdio: 'pipe' })
-    console.log('[Main] Started new Qdrant container')
-  } catch (err) {
-    console.error('[Main] Failed to start Qdrant container:', err instanceof Error ? err.message : err)
-    return
-  }
+  // Create config file with storage path
+  const configPath = join(appDataPath, 'qdrant-config.yaml')
+  const configContent = `storage:
+  storage_path: ${storagePath}
+
+service:
+  http_port: 6333
+  host: 127.0.0.1
+
+telemetry_disabled: true
+`
+  writeFileSync(configPath, configContent)
+
+  console.log('[Main] Starting Qdrant from:', qdrantPath)
+  console.log('[Main] Storage path:', storagePath)
+
+  // Spawn Qdrant process
+  qdrantProcess = spawn(qdrantPath, ['--config-path', configPath], {
+    stdio: ['ignore', 'pipe', 'pipe'],
+    detached: false
+  })
+
+  qdrantProcess.stdout?.on('data', (data) => {
+    console.log('[Qdrant]', data.toString().trim())
+  })
+
+  qdrantProcess.stderr?.on('data', (data) => {
+    console.error('[Qdrant]', data.toString().trim())
+  })
+
+  qdrantProcess.on('error', (err) => {
+    console.error('[Main] Failed to start Qdrant:', err)
+    qdrantProcess = null
+  })
+
+  qdrantProcess.on('exit', (code) => {
+    console.log('[Main] Qdrant exited with code:', code)
+    qdrantProcess = null
+  })
 
   // Wait for Qdrant to be ready
   for (let i = 0; i < 30; i++) {
@@ -93,11 +142,10 @@ async function startQdrant(): Promise<void> {
 }
 
 function stopQdrant(): void {
-  try {
-    execSync('docker stop localbird-qdrant', { stdio: 'ignore' })
-    console.log('[Main] Stopped Qdrant container')
-  } catch {
-    // Container may not be running
+  if (qdrantProcess) {
+    console.log('[Main] Stopping Qdrant...')
+    qdrantProcess.kill('SIGTERM')
+    qdrantProcess = null
   }
 }
 
@@ -264,6 +312,7 @@ async function stopServices(): Promise<void> {
   }
 
   await swiftBridge.stop()
+  stopQdrant()
 }
 
 // IPC handlers
