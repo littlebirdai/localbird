@@ -1,0 +1,8 @@
+storage:
+  storage_path: ${QDRANT_STORAGE_PATH}
+
+service:
+  http_port: 6333
+  host: 127.0.0.1
+
+telemetry_disabled: true

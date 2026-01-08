@@ -43,6 +43,7 @@
     "zod": "^4.3.4"
   },
   "devDependencies": {
+    "@electron/notarize": "^3.1.1",
     "@playwright/test": "^1.57.0",
     "@tailwindcss/typography": "^0.5.19",
     "@types/express": "^5.0.0",
@@ -64,15 +65,37 @@
   "build": {
     "appId": "com.localbird.app",
     "productName": "Localbird",
+    "directories": {
+      "output": "/tmp/localbird-dist"
+    },
     "mac": {
       "category": "public.app-category.productivity",
-      "icon": "resources/icon.icns",
+      "target": [
+        "dmg"
+      ],
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
       "extraResources": [
         {
           "from": "../localbird-service",
           "to": "bin/localbird-service"
+        },
+        {
+          "from": "bin/qdrant-${arch}",
+          "to": "bin/qdrant-${arch}"
+        },
+        {
+          "from": "resources/qdrant-config.yaml",
+          "to": "qdrant-config.yaml"
         }
       ]
+    },
+    "afterPack": "build/afterPack.cjs",
+    "afterSign": "build/notarize.cjs",
+    "dmg": {
+      "sign": false
     },
     "files": [
       "out/**/*",

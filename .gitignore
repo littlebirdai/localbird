@@ -11,3 +11,7 @@ standalone/localbird.app/
 standalone/.service.pid
 standalone/.env
 /build
+
+# Build artifacts
+localbird-service
+electron/electron-builder.env
