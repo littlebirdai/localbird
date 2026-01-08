@@ -145,10 +145,14 @@ export function createServer() {
         iteration++
         console.log(`[Server] Agent iteration ${iteration}`)
 
-        // Create streaming message
+        // Create streaming message with extended thinking
         const stream = client.messages.stream({
-          model: 'claude-opus-4-5-20251101',
-          max_tokens: 4096,
+          model: 'claude-opus-4-5',
+          max_tokens: 16000,
+          thinking: {
+            type: 'enabled',
+            budget_tokens: 10000
+          },
           system: systemPrompt,
           messages: anthropicMessages,
           tools: toolDefinitions
@@ -156,11 +160,30 @@ export function createServer() {
 
         // Collect the response
         let textContent = ''
+        let thinkingContent = ''
+        let thinkingStarted = false
         const toolUses: Array<{ id: string; name: string; input: Record<string, unknown> }> = []
+
+        // Stream thinking to client with start/end markers
+        stream.on('thinking', (thinking) => {
+          if (!clientDisconnected) {
+            if (!thinkingStarted) {
+              res.write('<thinking>')
+              thinkingStarted = true
+            }
+            thinkingContent += thinking
+            res.write(thinking)
+          }
+        })
 
         // Stream text to client as it comes
         stream.on('text', (text) => {
           if (!clientDisconnected) {
+            // Close thinking tag if we were thinking
+            if (thinkingStarted) {
+              res.write('</thinking>')
+              thinkingStarted = false
+            }
             textContent += text
             res.write(text)
           }
@@ -168,6 +191,12 @@ export function createServer() {
 
         // Wait for the stream to complete
         const response = await stream.finalMessage()
+
+        // Close thinking tag if still open
+        if (thinkingStarted && !clientDisconnected) {
+          res.write('</thinking>')
+          thinkingStarted = false
+        }
 
         // Check for tool use
         const hasToolUse = response.content.some((block) => block.type === 'tool_use')
@@ -296,6 +325,35 @@ export function createServer() {
       const embedding = await generateEmbedding(query)
       const frames = await qdrantClient.search(embedding, limit)
       res.json({ frames })
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' })
+    }
+  })
+
+  // Get latest frame path (for Claude Code to read directly)
+  app.get('/api/frames/latest', (_req: Request, res: Response) => {
+    try {
+      const framesDir = getFramesDirectory()
+      const files = fs.readdirSync(framesDir)
+        .filter(f => f.endsWith('.jpg'))
+        .map(f => ({
+          name: f,
+          path: path.join(framesDir, f),
+          mtime: fs.statSync(path.join(framesDir, f)).mtime.getTime()
+        }))
+        .sort((a, b) => b.mtime - a.mtime)
+
+      if (files.length === 0) {
+        res.status(404).json({ error: 'No frames found' })
+        return
+      }
+
+      const latest = files[0]
+      res.json({
+        path: latest.path,
+        id: latest.name.replace('.jpg', ''),
+        timestamp: new Date(latest.mtime).toISOString()
+      })
     } catch (error) {
       res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' })
     }

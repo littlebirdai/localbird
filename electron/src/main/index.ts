@@ -13,6 +13,26 @@ dotenvConfig()
 
 const store = new Store()
 
+// Chat storage types
+interface ChatMessage {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  createdAt: number
+}
+
+interface Chat {
+  id: string
+  title: string
+  createdAt: number
+  updatedAt: number
+  messages: ChatMessage[]
+}
+
+interface ChatsStore {
+  [id: string]: Chat
+}
+
 // Load API keys from environment variables for local dev
 function getApiKey(key: string, envVar: string): string {
   // Environment variable takes precedence for local dev
@@ -300,6 +320,128 @@ function setupIPC(): void {
   ipcMain.handle('check-qdrant', async () => {
     return await qdrantClient.healthCheck()
   })
+
+  // Chat CRUD handlers
+  ipcMain.handle('chats:list', () => {
+    const chats = (store.get('chats') as ChatsStore) || {}
+    // Return metadata only (without messages) sorted by updatedAt desc
+    return Object.values(chats)
+      .map(({ id, title, createdAt, updatedAt }) => ({ id, title, createdAt, updatedAt }))
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+  })
+
+  ipcMain.handle('chats:get', (_event, id: string) => {
+    const chats = (store.get('chats') as ChatsStore) || {}
+    return chats[id] || null
+  })
+
+  ipcMain.handle('chats:save', (_event, chat: Chat) => {
+    const chats = (store.get('chats') as ChatsStore) || {}
+    chats[chat.id] = {
+      ...chat,
+      updatedAt: Date.now()
+    }
+    store.set('chats', chats)
+    return { success: true }
+  })
+
+  ipcMain.handle('chats:delete', (_event, id: string) => {
+    const chats = (store.get('chats') as ChatsStore) || {}
+    delete chats[id]
+    store.set('chats', chats)
+    return { success: true }
+  })
+}
+
+function createApplicationMenu(): void {
+  const template: Electron.MenuItemConstructorOptions[] = [
+    {
+      label: app.name,
+      submenu: [
+        { role: 'about' },
+        { type: 'separator' },
+        {
+          label: 'Settings...',
+          accelerator: 'CmdOrCtrl+,',
+          click: () => {
+            mainWindow?.show()
+            mainWindow?.focus()
+            mainWindow?.webContents.send('navigate', '/settings')
+          }
+        },
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit' }
+      ]
+    },
+    {
+      label: 'File',
+      submenu: [
+        {
+          label: 'New Chat',
+          accelerator: 'CmdOrCtrl+N',
+          click: () => {
+            mainWindow?.show()
+            mainWindow?.focus()
+            mainWindow?.webContents.send('new-chat')
+          }
+        },
+        { type: 'separator' },
+        { role: 'close' }
+      ]
+    },
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'selectAll' }
+      ]
+    },
+    {
+      label: 'View',
+      submenu: [
+        {
+          label: 'Chat',
+          accelerator: 'CmdOrCtrl+1',
+          click: () => {
+            mainWindow?.webContents.send('navigate', '/chat')
+          }
+        },
+        {
+          label: 'Timeline',
+          accelerator: 'CmdOrCtrl+2',
+          click: () => {
+            mainWindow?.webContents.send('navigate', '/timeline')
+          }
+        },
+        {
+          label: 'Settings',
+          accelerator: 'CmdOrCtrl+3',
+          click: () => {
+            mainWindow?.webContents.send('navigate', '/settings')
+          }
+        },
+        { type: 'separator' },
+        { role: 'reload' },
+        { role: 'forceReload' },
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' }
+      ]
+    },
+    { role: 'windowMenu' }
+  ]
+
+  const menu = Menu.buildFromTemplate(template)
+  Menu.setApplicationMenu(menu)
 }
 
 // App lifecycle
@@ -314,6 +456,7 @@ app.whenReady().then(async () => {
 
   setupIPC()
   createWindow()
+  createApplicationMenu()
   createTray()
 
   // Skip services in test mode

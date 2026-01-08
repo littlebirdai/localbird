@@ -36,7 +36,12 @@ ln -s ~/Library/Developer/Xcode/DerivedData/localbird-*/Build/Products/Debug/loc
 **Requirements:**
 - macOS 13+
 - Node.js 24+
-- Qdrant running locally: `docker run -p 6333:6333 qdrant/qdrant`
+- Qdrant running locally with persistent storage:
+  ```bash
+  docker run -d --name localbird-qdrant -p 6333:6333 \
+    -v ~/Library/Application\ Support/Localbird/qdrant:/qdrant/storage \
+    qdrant/qdrant
+  ```
 - API key for at least one LLM provider (Claude works for both vision and chat; Gemini free tier has low rate limits)
 
 **Testing:**
@@ -117,3 +122,12 @@ curl -s http://localhost:3001/api/frames/latest
 ```
 
 Then use the Read tool on the returned path to view the screenshot. This enables Claude Code to "see" what's on screen without manual screenshot sharing.
+
+## Common Errors to Avoid
+
+- When testing Gemini API, use `gemini-2.5-flash` or `gemini-3-flash-preview`, not `gemini-2.0-flash` (older models have stricter/different rate limits)
+- **Chat model must be `claude-opus-4-5`** - do NOT change to Sonnet or other models in `server.ts` (the date suffix like `-20250514` causes 404 errors). If you must fall back, use `claude-sonnet-4-5` NOT `claude-sonnet-4` - never fall back to old models.
+
+## User-Specific Notes
+
+- Screenshots for debugging are saved to `iCloud Drive/Documents/Screenshots`
