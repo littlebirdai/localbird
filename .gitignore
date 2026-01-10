@@ -15,3 +15,8 @@ standalone/.env
 # Build artifacts
 localbird-service
 electron/electron-builder.env
+
+# C# Windows service build artifacts
+LocalbirdCapture/bin/
+LocalbirdCapture/obj/
+LocalbirdCapture/publish/

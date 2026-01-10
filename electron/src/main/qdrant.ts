@@ -1,16 +1,37 @@
-interface SearchResult {
+export interface SearchResult {
   id: string
   score: number
   timestamp: number
   summary: string
   activeApplication: string | null
   userActivity: string | null
+  captureTrigger?: string | null
+  appBundleId?: string | null
+  appName?: string | null
+  windowTitle?: string | null
 }
 
-interface CollectionInfo {
+export interface CollectionInfo {
   name: string
   pointsCount: number
   vectorsCount: number
+}
+
+export interface ProcessedFrame {
+  id: string
+  timestamp: number
+  embedding: number[]
+  summary: string
+  activeApplication: string | null
+  userActivity: string | null
+  visibleText: string[]
+  focusedApp: string | null
+  focusedWindow: string | null
+  captureTrigger: string
+  appBundleId: string | null
+  appName: string | null
+  windowTitle: string | null
+  windowBounds: { x: number; y: number; width: number; height: number } | null
 }
 
 class QdrantClient {
@@ -28,6 +49,71 @@ class QdrantClient {
       return response.ok
     } catch {
       return false
+    }
+  }
+
+  async ensureCollection(vectorSize = 768): Promise<void> {
+    // Check if collection exists
+    const checkResponse = await fetch(`${this.baseUrl}/collections/${this.collectionName}`)
+    if (checkResponse.ok) {
+      return // Collection exists
+    }
+
+    // Create collection
+    const response = await fetch(`${this.baseUrl}/collections/${this.collectionName}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        vectors: {
+          size: vectorSize,
+          distance: 'Cosine'
+        }
+      })
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to create collection: ${response.statusText}`)
+    }
+
+    console.log(`[Qdrant] Collection '${this.collectionName}' created`)
+  }
+
+  async upsertFrame(frame: ProcessedFrame): Promise<void> {
+    const payload = {
+      id: frame.id,
+      timestamp: frame.timestamp,
+      summary: frame.summary,
+      activeApplication: frame.activeApplication || '',
+      userActivity: frame.userActivity || '',
+      visibleText: frame.visibleText,
+      focusedApp: frame.focusedApp || '',
+      focusedWindow: frame.focusedWindow || '',
+      captureTrigger: frame.captureTrigger,
+      appBundleId: frame.appBundleId || '',
+      appName: frame.appName || '',
+      windowTitle: frame.windowTitle || '',
+      windowBoundsX: frame.windowBounds?.x ?? 0,
+      windowBoundsY: frame.windowBounds?.y ?? 0,
+      windowBoundsWidth: frame.windowBounds?.width ?? 0,
+      windowBoundsHeight: frame.windowBounds?.height ?? 0
+    }
+
+    const response = await fetch(`${this.baseUrl}/collections/${this.collectionName}/points`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        points: [
+          {
+            id: frame.id,
+            vector: frame.embedding,
+            payload
+          }
+        ]
+      })
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to upsert frame: ${response.statusText}`)
     }
   }
 
@@ -56,7 +142,11 @@ class QdrantClient {
       timestamp: result.payload?.timestamp || 0,
       summary: result.payload?.summary || '',
       activeApplication: result.payload?.activeApplication || null,
-      userActivity: result.payload?.userActivity || null
+      userActivity: result.payload?.userActivity || null,
+      captureTrigger: result.payload?.captureTrigger || null,
+      appBundleId: result.payload?.appBundleId || null,
+      appName: result.payload?.appName || null,
+      windowTitle: result.payload?.windowTitle || null
     }))
   }
 
@@ -94,7 +184,11 @@ class QdrantClient {
       timestamp: point.payload?.timestamp || 0,
       summary: point.payload?.summary || '',
       activeApplication: point.payload?.activeApplication || null,
-      userActivity: point.payload?.userActivity || null
+      userActivity: point.payload?.userActivity || null,
+      captureTrigger: point.payload?.captureTrigger || null,
+      appBundleId: point.payload?.appBundleId || null,
+      appName: point.payload?.appName || null,
+      windowTitle: point.payload?.windowTitle || null
     }))
   }
 
@@ -126,4 +220,3 @@ class QdrantClient {
 
 export const qdrantClient = new QdrantClient()
 export { QdrantClient }
-export type { SearchResult, CollectionInfo }
