@@ -20,3 +20,10 @@ electron/electron-builder.env
 LocalbirdCapture/bin/
 LocalbirdCapture/obj/
 LocalbirdCapture/publish/
+
+# Qdrant binary (downloaded at runtime)
+bin/
+
+# Generated files
+electron/.qdrant-initialized
+electron/package-lock.json
