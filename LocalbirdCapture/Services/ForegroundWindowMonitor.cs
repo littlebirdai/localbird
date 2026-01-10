@@ -6,7 +6,7 @@ public class ForegroundWindowMonitor : IDisposable
 {
     private readonly ILogger<ForegroundWindowMonitor> _logger;
     private IntPtr _currentHwnd;
-    private Timer? _pollTimer;
+    private System.Threading.Timer? _pollTimer;
     private bool _isMonitoring;
 
     public event Action<IntPtr, IntPtr>? OnWindowChanged;
@@ -29,7 +29,7 @@ public class ForegroundWindowMonitor : IDisposable
         UpdateWindowInfo();
 
         // Poll every 250ms
-        _pollTimer = new Timer(_ => CheckForegroundWindow(), null, 0, 250);
+        _pollTimer = new System.Threading.Timer(_ => CheckForegroundWindow(), null, 0, 250);
         _logger.LogInformation("Started foreground window monitoring");
     }
 

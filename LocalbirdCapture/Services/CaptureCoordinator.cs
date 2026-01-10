@@ -10,8 +10,8 @@ public class CaptureCoordinator : IDisposable
     private readonly AccessibilityService _accessibilityService;
     private readonly ForegroundWindowMonitor _windowMonitor;
 
-    private Timer? _captureTimer;
-    private Timer? _fullScreenTimer;
+    private System.Threading.Timer? _captureTimer;
+    private System.Threading.Timer? _fullScreenTimer;
     private ServiceConfig _config = new();
     private readonly object _frameLock = new();
 
@@ -106,7 +106,7 @@ public class CaptureCoordinator : IDisposable
     private void StartTimers()
     {
         _captureTimer?.Dispose();
-        _captureTimer = new Timer(
+        _captureTimer = new System.Threading.Timer(
             async _ => await CaptureFrameAsync(CaptureTrigger.Timer),
             null,
             TimeSpan.FromSeconds(_config.CaptureInterval),
@@ -115,7 +115,7 @@ public class CaptureCoordinator : IDisposable
         if (_config.EnableFullScreenCaptures)
         {
             _fullScreenTimer?.Dispose();
-            _fullScreenTimer = new Timer(
+            _fullScreenTimer = new System.Threading.Timer(
                 async _ => await CaptureFullScreenAsync(),
                 null,
                 TimeSpan.FromSeconds(_config.FullScreenCaptureInterval),

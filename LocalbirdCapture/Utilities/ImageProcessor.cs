@@ -37,7 +37,7 @@ public static class ImageProcessor
 
     private static byte[] EncodeJpeg(Bitmap bitmap)
     {
-        using var ms = new MemoryStream();
+        using var ms = new System.IO.MemoryStream();
         var encoder = GetJpegEncoder();
         if (encoder == null)
         {
