@@ -53,7 +53,8 @@ function getApiKey(key: string, envVar: string): string {
 
 function getQdrantPath(): string | null {
   const arch = process.arch === 'arm64' ? 'arm64' : 'x64'
-  const binaryName = `qdrant-${arch}`
+  const ext = process.platform === 'win32' ? '.exe' : ''
+  const binaryName = `qdrant-${arch}${ext}`
 
   // Production: bundled in app Resources
   const resourcesPath = process.resourcesPath || ''
