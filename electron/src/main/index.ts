@@ -5,10 +5,12 @@ import { existsSync, mkdirSync, writeFileSync } from 'fs'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import Store from 'electron-store'
 import { config as dotenvConfig } from 'dotenv'
-import { nativeBridge, swiftBridge } from './native-bridge'
+import { nativeBridge } from './native-bridge'
 import type { ServiceStatus } from './native-bridge'
 import { createServer } from './server'
 import { qdrantClient } from './qdrant'
+import { llmService } from './llm'
+import { frameProcessor } from './frame-processor'
 
 // Load .env file for local development
 dotenvConfig()
@@ -154,8 +156,35 @@ let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let expressServer: ReturnType<typeof createServer> | null = null
 let serverInstance: ReturnType<typeof expressServer['listen']> | null = null
+let framePollingInterval: ReturnType<typeof setInterval> | null = null
 
 const SERVER_PORT = 3001
+const FRAME_POLL_INTERVAL = 500 // Poll for new frames every 500ms
+
+// Start polling for frames from native service
+function startFramePolling(): void {
+  if (framePollingInterval) return
+
+  console.log('[Main] Starting frame polling')
+  framePollingInterval = setInterval(async () => {
+    try {
+      const frame = await nativeBridge.getLatestFrame()
+      if (frame) {
+        await frameProcessor.processFrame(frame)
+      }
+    } catch (error) {
+      // Silently ignore polling errors (service might not be ready)
+    }
+  }, FRAME_POLL_INTERVAL)
+}
+
+function stopFramePolling(): void {
+  if (framePollingInterval) {
+    console.log('[Main] Stopping frame polling')
+    clearInterval(framePollingInterval)
+    framePollingInterval = null
+  }
+}
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -213,7 +242,7 @@ function createTray(): void {
 }
 
 async function updateTrayMenu(): Promise<void> {
-  const status = await swiftBridge.getStatus()
+  const status = await nativeBridge.getStatus()
 
   const contextMenu = Menu.buildFromTemplate([
     {
@@ -225,9 +254,11 @@ async function updateTrayMenu(): Promise<void> {
       label: status.isRunning ? 'Stop Capture' : 'Start Capture',
       click: async () => {
         if (status.isRunning) {
-          await swiftBridge.stopCapture()
+          await nativeBridge.stopCapture()
+          stopFramePolling()
         } else {
-          await swiftBridge.startCapture()
+          await nativeBridge.startCapture()
+          startFramePolling()
         }
         updateTrayMenu()
       }
@@ -266,32 +297,52 @@ async function startServices(): Promise<void> {
   // Start Qdrant first
   await startQdrant()
 
+  // Initialize frame processor
+  try {
+    await frameProcessor.initialize()
+    console.log('[Main] Frame processor initialized')
+  } catch (error) {
+    console.error('[Main] Failed to initialize frame processor:', error)
+  }
+
   // Start Express server for chat API
   expressServer = createServer()
   serverInstance = expressServer.listen(SERVER_PORT, () => {
     console.log(`[Main] API server running on port ${SERVER_PORT}`)
   })
 
-  // Start Swift service
-  try {
-    await swiftBridge.start()
+  // Get API keys (env vars take precedence for local dev)
+  const geminiAPIKey = getApiKey('geminiAPIKey', 'GEMINI_API_KEY')
+  const claudeAPIKey = getApiKey('claudeAPIKey', 'ANTHROPIC_API_KEY')
+  const openaiAPIKey = getApiKey('openaiAPIKey', 'OPENAI_API_KEY')
+  const activeVisionProvider = (store.get('activeVisionProvider') as string) || 'gemini'
 
-    // Configure with stored settings (env vars take precedence for local dev)
+  // Configure LLM service for frame processing
+  llmService.configure({
+    geminiAPIKey,
+    claudeAPIKey,
+    openaiAPIKey,
+    activeVisionProvider: activeVisionProvider as 'gemini' | 'claude' | 'openai'
+  })
+  console.log('[Main] LLM service configured:', llmService.getActiveProviders())
+
+  // Start native service
+  try {
+    await nativeBridge.start()
+
+    // Configure native service with capture settings only (no LLM keys)
     const config = {
-      geminiAPIKey: getApiKey('geminiAPIKey', 'GEMINI_API_KEY'),
-      claudeAPIKey: getApiKey('claudeAPIKey', 'ANTHROPIC_API_KEY'),
-      openaiAPIKey: getApiKey('openaiAPIKey', 'OPENAI_API_KEY'),
       captureInterval: (store.get('captureInterval') as number) || 5,
       enableFullScreenCaptures: store.get('enableFullScreenCaptures', true) as boolean,
-      fullScreenCaptureInterval: (store.get('fullScreenCaptureInterval') as number) || 1,
-      activeVisionProvider: (store.get('activeVisionProvider') as string) || 'gemini'
+      fullScreenCaptureInterval: (store.get('fullScreenCaptureInterval') as number) || 1
     }
 
-    await swiftBridge.configure(config)
+    await nativeBridge.configure(config)
 
     // Auto-start capture if enabled
     if (store.get('autoStartCapture', true)) {
-      await swiftBridge.startCapture()
+      await nativeBridge.startCapture()
+      startFramePolling()
     }
 
     // Update tray menu with status
@@ -300,36 +351,40 @@ async function startServices(): Promise<void> {
     // Periodically update tray menu
     setInterval(() => updateTrayMenu(), 5000)
   } catch (error) {
-    console.error('[Main] Failed to start Swift service:', error)
+    console.error('[Main] Failed to start native service:', error)
   }
 }
 
 async function stopServices(): Promise<void> {
   console.log('[Main] Stopping services...')
 
+  stopFramePolling()
+
   if (serverInstance) {
     serverInstance.close()
     serverInstance = null
   }
 
-  await swiftBridge.stop()
+  await nativeBridge.stop()
   stopQdrant()
 }
 
 // IPC handlers
 function setupIPC(): void {
   ipcMain.handle('get-status', async () => {
-    return await swiftBridge.getStatus()
+    return await nativeBridge.getStatus()
   })
 
   ipcMain.handle('start-capture', async () => {
-    await swiftBridge.startCapture()
+    await nativeBridge.startCapture()
+    startFramePolling()
     updateTrayMenu()
     return { success: true }
   })
 
   ipcMain.handle('stop-capture', async () => {
-    await swiftBridge.stopCapture()
+    await nativeBridge.stopCapture()
+    stopFramePolling()
     updateTrayMenu()
     return { success: true }
   })
@@ -353,15 +408,19 @@ function setupIPC(): void {
       store.set(key, value)
     }
 
-    // Reconfigure Swift service
-    await swiftBridge.configure({
+    // Reconfigure LLM service
+    llmService.configure({
       geminiAPIKey: settings.geminiAPIKey,
       claudeAPIKey: settings.claudeAPIKey,
       openaiAPIKey: settings.openaiAPIKey,
+      activeVisionProvider: settings.activeVisionProvider
+    })
+
+    // Reconfigure native service (capture settings only)
+    await nativeBridge.configure({
       captureInterval: settings.captureInterval,
       enableFullScreenCaptures: settings.enableFullScreenCaptures,
-      fullScreenCaptureInterval: settings.fullScreenCaptureInterval,
-      activeVisionProvider: settings.activeVisionProvider
+      fullScreenCaptureInterval: settings.fullScreenCaptureInterval
     })
 
     return { success: true }
