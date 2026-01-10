@@ -97,6 +97,25 @@
     "dmg": {
       "sign": false
     },
+    "win": {
+      "target": ["nsis"],
+      "sign": false,
+      "extraResources": [
+        {
+          "from": "../LocalbirdCapture/bin/Debug/net8.0-windows10.0.19041.0/win-x64",
+          "to": "bin",
+          "filter": ["**/*"]
+        },
+        {
+          "from": "../bin/qdrant-x64.exe",
+          "to": "bin/qdrant-x64.exe"
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
     "files": [
       "out/**/*",
       "resources/**/*"
