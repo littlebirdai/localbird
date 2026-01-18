@@ -222,10 +222,10 @@ function createWindow(): void {
 }
 
 function createTray(): void {
-  // Create a simple tray icon (you'd replace this with a proper icon)
-  const icon = nativeImage.createFromDataURL(
-    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAAdgAAAHYBTnsmCAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAAEBSURBVDiNpZMxTsNAEEV/dhIJCuqUNNQU9Fzi/D1FGi6ARSRF4ASuCaXdWHbWw2Y3Dgix0krj3f/nz+zKMZm1tVoNnZoHANi2bQMgImIA3N3TOM5a63kYhrXWepEkT/b9/Xbxr7+EEE5SSk9JkjwqpUYAHpZlOfd9f+fc3dYvPEVRnLq+L4Zh2CS5cSFEW/BjCABIKWOt9YlzLhRFcZrn+S3Jq67rBgCH/wZorUcppUdEJONxDCGETkrpHBHZe+9vQggXAPaIaG+MCRKRz6SUMcZ4nOf5bZ7nV4jo0hgz9H1/kef5rdb6OMuyqwA49n1/GWO8stZeTxfY2MZyuTxK0/TYGHMEANwBU5lYy+IAAAAABJRU5ErkJggg=='
-  )
+  // Load tray icon from resources (Template suffix for macOS auto-styling)
+  const iconPath = join(__dirname, '../../resources/iconTemplate.png')
+  const icon = nativeImage.createFromPath(iconPath)
+  icon.setTemplateImage(true)
 
   tray = new Tray(icon)
   tray.setToolTip('Localbird')
@@ -331,11 +331,15 @@ async function startServices(): Promise<void> {
   try {
     await nativeBridge.start()
 
-    // Configure native service with capture settings only (no LLM keys)
+    // Configure native service with capture settings and API keys
     const config = {
       captureInterval: (store.get('captureInterval') as number) || 5,
       enableFullScreenCaptures: store.get('enableFullScreenCaptures', true) as boolean,
-      fullScreenCaptureInterval: (store.get('fullScreenCaptureInterval') as number) || 1
+      fullScreenCaptureInterval: (store.get('fullScreenCaptureInterval') as number) || 1,
+      geminiAPIKey,
+      claudeAPIKey,
+      openaiAPIKey,
+      activeVisionProvider
     }
 
     await nativeBridge.configure(config)
@@ -417,11 +421,15 @@ function setupIPC(): void {
       activeVisionProvider: settings.activeVisionProvider
     })
 
-    // Reconfigure native service (capture settings only)
+    // Reconfigure native service with full settings
     await nativeBridge.configure({
       captureInterval: settings.captureInterval,
       enableFullScreenCaptures: settings.enableFullScreenCaptures,
-      fullScreenCaptureInterval: settings.fullScreenCaptureInterval
+      fullScreenCaptureInterval: settings.fullScreenCaptureInterval,
+      geminiAPIKey: settings.geminiAPIKey,
+      claudeAPIKey: settings.claudeAPIKey,
+      openaiAPIKey: settings.openaiAPIKey,
+      activeVisionProvider: settings.activeVisionProvider
     })
 
     return { success: true }

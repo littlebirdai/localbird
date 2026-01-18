@@ -255,11 +255,15 @@ class NativeBridge {
       throw new Error('Service not ready')
     }
 
-    // Only send capture-related config to native service
-    const nativeConfig: NativeServiceConfig = {
+    // Send full config including API keys to native service
+    const nativeConfig: ServiceConfig = {
       captureInterval: config.captureInterval,
       enableFullScreenCaptures: config.enableFullScreenCaptures,
-      fullScreenCaptureInterval: config.fullScreenCaptureInterval
+      fullScreenCaptureInterval: config.fullScreenCaptureInterval,
+      geminiAPIKey: config.geminiAPIKey,
+      claudeAPIKey: config.claudeAPIKey,
+      openaiAPIKey: config.openaiAPIKey,
+      activeVisionProvider: config.activeVisionProvider
     }
 
     const response = await httpPost(`${this.baseUrl}/configure`, nativeConfig)

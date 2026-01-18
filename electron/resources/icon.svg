@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- White background with rounded corners for macOS style -->
+  <rect width="512" height="512" rx="80" ry="80" fill="#ffffff"/>
+
+  <!-- Minimalist bird silhouette - elegant and modern -->
+  <g transform="translate(80, 100)">
+    <!-- Bird body - flowing curve -->
+    <path fill="#000000" d="
+      M280 160
+      c-20-40-60-70-110-80
+      c-40-8-80 0-110 25
+      c-25 20-40 50-40 85
+      c0 30 10 55 30 75
+      c25 25 60 40 100 40
+      c50 0 95-25 120-65
+      c20-30 25-55 10-80
+      z
+    "/>
+
+    <!-- Wing detail - inner curve -->
+    <path fill="#ffffff" d="
+      M200 140
+      c-15-20-40-35-70-35
+      c-25 0-50 12-65 35
+      c-12 18-15 40-8 58
+      c20-25 50-42 85-42
+      c25 0 48 8 65 22
+      c-2-15-4-28-7-38
+      z
+    "/>
+
+    <!-- Eye -->
+    <circle fill="#ffffff" cx="240" cy="130" r="18"/>
+    <circle fill="#000000" cx="244" cy="128" r="8"/>
+  </g>
+</svg>
