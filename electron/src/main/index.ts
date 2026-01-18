@@ -11,6 +11,7 @@ import { createServer } from './server'
 import { qdrantClient } from './qdrant'
 import { llmService } from './llm'
 import { frameProcessor } from './frame-processor'
+import { setupAutoUpdater, checkForUpdates } from './updater'
 
 // Load .env file for local development
 dotenvConfig()
@@ -498,6 +499,10 @@ function createApplicationMenu(): void {
             mainWindow?.webContents.send('navigate', '/settings')
           }
         },
+        {
+          label: 'Check for Updates...',
+          click: () => checkForUpdates()
+        },
         { type: 'separator' },
         { role: 'hide' },
         { role: 'hideOthers' },
@@ -594,6 +599,9 @@ app.whenReady().then(async () => {
   } else {
     console.log('[Main] Skipping services (test mode)')
   }
+
+  // Setup auto-updater (checks for updates on startup)
+  setupAutoUpdater(mainWindow)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

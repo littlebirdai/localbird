@@ -32,6 +32,7 @@
     "clsx": "^2.1.1",
     "dotenv": "^17.2.3",
     "electron-store": "^10.0.0",
+    "electron-updater": "^6.7.3",
     "express": "^4.21.0",
     "lucide-react": "^0.460.0",
     "react": "^18.3.1",
@@ -68,11 +69,17 @@
     "directories": {
       "output": "/tmp/localbird-dist"
     },
+    "publish": {
+      "provider": "github",
+      "owner": "littlebirdai",
+      "repo": "localbird"
+    },
     "mac": {
       "category": "public.app-category.productivity",
       "icon": "resources/icon.icns",
       "target": [
-        "dmg"
+        "dmg",
+        "zip"
       ],
       "identity": "Little Bird Software, LLC (ML63743965)",
       "hardenedRuntime": true,
@@ -100,13 +107,17 @@
       "sign": false
     },
     "win": {
-      "target": ["nsis"],
+      "target": [
+        "nsis"
+      ],
       "sign": false,
       "extraResources": [
         {
           "from": "../LocalbirdCapture/bin/Debug/net8.0-windows10.0.19041.0/win-x64",
           "to": "bin",
-          "filter": ["**/*"]
+          "filter": [
+            "**/*"
+          ]
         },
         {
           "from": "../bin/qdrant-x64.exe",
