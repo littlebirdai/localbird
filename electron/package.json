@@ -74,6 +74,7 @@
       "target": [
         "dmg"
       ],
+      "identity": "Little Bird Software, LLC (ML63743965)",
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",

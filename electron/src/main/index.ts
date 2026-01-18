@@ -63,13 +63,20 @@ function getQdrantPath(): string | null {
     return bundledPath
   }
 
-  // Development: in electron/bin
-  const devPath = join(__dirname, '../../..', 'bin', binaryName)
-  if (existsSync(devPath)) {
-    return devPath
+  // Development: in electron/bin (try multiple paths)
+  const devPaths = [
+    join(__dirname, '../../..', 'bin', binaryName),
+    join(__dirname, '../..', 'bin', binaryName),
+    join(app.getAppPath(), 'bin', binaryName),
+    join(app.getAppPath(), '..', 'bin', binaryName),
+  ]
+  for (const devPath of devPaths) {
+    if (existsSync(devPath)) {
+      return devPath
+    }
   }
 
-  console.log('[Main] Qdrant binary not found at:', bundledPath, 'or', devPath)
+  console.log('[Main] Qdrant binary not found at:', bundledPath, 'or dev paths:', devPaths)
   return null
 }
 
@@ -111,9 +118,11 @@ telemetry_disabled: true
   console.log('[Main] Storage path:', storagePath)
 
   // Spawn Qdrant process
+  // Set cwd to storage path to avoid issues with relative paths when launched from Finder
   qdrantProcess = spawn(qdrantPath, ['--config-path', configPath], {
     stdio: ['ignore', 'pipe', 'pipe'],
-    detached: false
+    detached: false,
+    cwd: storagePath
   })
 
   qdrantProcess.stdout?.on('data', (data) => {
@@ -436,7 +445,9 @@ function setupIPC(): void {
   })
 
   ipcMain.handle('check-qdrant', async () => {
-    return await qdrantClient.healthCheck()
+    const result = await qdrantClient.healthCheck()
+    console.log('[Main] check-qdrant IPC called, result:', result)
+    return result
   })
 
   // Chat CRUD handlers

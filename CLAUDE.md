@@ -128,6 +128,35 @@ Then use the Read tool on the returned path to view the screenshot. This enables
 - When testing Gemini API, use `gemini-2.5-flash` or `gemini-3-flash-preview`, not `gemini-2.0-flash` (older models have stricter/different rate limits)
 - **Chat model must be `claude-opus-4-5`** - do NOT change to Sonnet or other models in `server.ts` (the date suffix like `-20250514` causes 404 errors). If you must fall back, use `claude-sonnet-4-5` NOT `claude-sonnet-4` - never fall back to old models.
 
+## Build & Distribution Notes
+
+### Spawning Child Processes
+When spawning Qdrant or other child processes, **always set `cwd`** in spawn options. Apps launched from Finder have a different working directory than terminal launches, causing child processes to fail silently.
+
+### macOS Code Signing & Notarization
+For distribution, the app must be signed with a Developer ID certificate and notarized:
+- Set `identity` in electron-builder mac config (just the name, not "Developer ID Application:" prefix)
+- Create `electron/electron-builder.env` with `APPLE_ID`, `APPLE_ID_PASSWORD` (app-specific), `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`
+- The `afterPack.cjs` hook signs bundled binaries (Qdrant, Swift service) with the same identity
+- Notarization happens automatically via `afterSign` hook
+
+### Swift Service for Distribution
+The packaged app expects `localbird-service` binary at repo root. After building Swift:
+```bash
+cp DerivedData/Build/Products/Release/localbird.app/Contents/MacOS/localbird ./localbird-service
+codesign --force --options runtime --sign "Developer ID Application: ..." ./localbird-service
+```
+
+### Dev Mode Binary Paths
+Dev mode checks multiple paths for Qdrant binary since `__dirname` varies. If binary not found, check the path resolution in `getQdrantPath()`.
+
+### API Keys Storage
+- Dev: `electron/.env` (ANTHROPIC_API_KEY, GEMINI_API_KEY)
+- Production: `~/Library/Application Support/localbird/config.json`
+
+### Vision Provider Recommendation
+Use **Claude for vision** - Gemini free tier has severe rate limits (5 requests/minute). Claude has no such limits for paid API.
+
 ## User-Specific Notes
 
 - Screenshots for debugging are saved to `iCloud Drive/Documents/Screenshots`

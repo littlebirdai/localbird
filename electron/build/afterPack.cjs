@@ -8,7 +8,8 @@ exports.default = async function(context) {
   const binPath = path.join(resourcesPath, 'bin');
   const entitlements = path.join(context.packager.projectDir, 'build', 'entitlements.mac.plist');
 
-  // Sign bundled binaries with hardened runtime
+  // Sign bundled binaries with hardened runtime using Developer ID
+  const signIdentity = 'Developer ID Application: Little Bird Software, LLC (ML63743965)';
   const binaries = ['localbird-service', 'qdrant-arm64', 'qdrant-x64'];
 
   for (const binary of binaries) {
@@ -16,7 +17,7 @@ exports.default = async function(context) {
     if (fs.existsSync(binaryPath)) {
       console.log(`[afterPack] Signing: ${binaryPath}`);
       try {
-        execSync(`codesign --force --options runtime --sign - --entitlements "${entitlements}" "${binaryPath}"`, { stdio: 'inherit' });
+        execSync(`codesign --force --options runtime --sign "${signIdentity}" --entitlements "${entitlements}" "${binaryPath}"`, { stdio: 'inherit' });
       } catch (error) {
         console.error(`[afterPack] Failed to sign ${binary}:`, error.message);
       }

@@ -40,8 +40,12 @@ export function Settings() {
     checkQdrant()
     loadCaptureStatus()
 
-    const interval = setInterval(loadCaptureStatus, 5000)
-    return () => clearInterval(interval)
+    const captureInterval = setInterval(loadCaptureStatus, 5000)
+    const qdrantInterval = setInterval(checkQdrant, 3000)
+    return () => {
+      clearInterval(captureInterval)
+      clearInterval(qdrantInterval)
+    }
   }, [])
 
   const loadSettings = async () => {
@@ -66,8 +70,10 @@ export function Settings() {
     setQdrantStatus('checking')
     try {
       const isConnected = await window.api.checkQdrant()
+      console.log('[Settings] checkQdrant result:', isConnected)
       setQdrantStatus(isConnected ? 'connected' : 'disconnected')
     } catch (error) {
+      console.error('[Settings] checkQdrant error:', error)
       setQdrantStatus('disconnected')
     }
   }
