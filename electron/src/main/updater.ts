@@ -1,4 +1,5 @@
-import { autoUpdater } from 'electron-updater'
+import pkg from 'electron-updater'
+const { autoUpdater } = pkg
 import { app, dialog, BrowserWindow } from 'electron'
 
 export function setupAutoUpdater(mainWindow: BrowserWindow | null): void {
