@@ -6,5 +6,7 @@
 	<true/>
 	<key>NSScreenCaptureUsageDescription</key>
 	<string>Localbird needs screen recording access to capture screenshots for analysis and storage.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Localbird needs microphone access to record and transcribe meetings.</string>
 </dict>
 </plist>

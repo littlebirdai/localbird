@@ -82,4 +82,14 @@ class LLMService: ObservableObject {
     func embeddingProviders() -> [LLMProviderType] {
         providers.filter { $0.value.supportsEmbeddings }.map { $0.key }
     }
+
+    /// Check if any embedding provider is configured and available
+    func hasEmbeddingSupport() -> Bool {
+        return providers.values.contains { $0.supportsEmbeddings }
+    }
+
+    /// Check if any chat provider is configured and available
+    func hasChatSupport() -> Bool {
+        return !providers.isEmpty  // All providers support chat
+    }
 }

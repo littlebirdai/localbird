@@ -92,6 +92,43 @@ export interface CapturedFrameData {
   } | null
 }
 
+// Meeting types
+export type MeetingRecordingState = 'idle' | 'recording' | 'processing' | 'error'
+
+export interface MeetingStatus {
+  state: MeetingRecordingState
+  currentMeetingId: string | null
+  duration: number
+  liveTranscript: string
+  error: string | null
+}
+
+export interface TranscriptSegment {
+  startTime: number
+  endTime: number
+  text: string
+}
+
+export interface MeetingNote {
+  id: string
+  title: string
+  startTime: number
+  endTime: number | null
+  duration: number
+  transcript: string
+  segments: TranscriptSegment[]
+  audioPath: string | null
+}
+
+export interface MeetingListItem {
+  id: string
+  title: string
+  startTime: number
+  endTime: number | null
+  duration: number
+  transcriptPreview: string
+}
+
 type Platform = 'macos' | 'windows' | 'linux'
 
 function getPlatform(): Platform {
@@ -347,6 +384,136 @@ class NativeBridge {
       console.error('[NativeBridge] Failed to get latest frame:', error)
       return null
     }
+  }
+
+  // Meeting methods
+
+  async startMeeting(title?: string): Promise<{ meetingId: string; title: string; startTime: number }> {
+    if (!this.isReady) {
+      throw new Error('Service not ready')
+    }
+
+    const response = await httpPost(`${this.baseUrl}/meeting/start`, title ? { title } : {})
+
+    if (response.status !== 200) {
+      const errorBody = JSON.parse(response.body)
+      throw new Error(errorBody.error || `Start meeting failed: ${response.status}`)
+    }
+
+    const result = JSON.parse(response.body)
+    console.log('[NativeBridge] Meeting started:', result.meetingId)
+    return result
+  }
+
+  async stopMeeting(): Promise<MeetingNote> {
+    if (!this.isReady) {
+      throw new Error('Service not ready')
+    }
+
+    const response = await httpPost(`${this.baseUrl}/meeting/stop`)
+
+    if (response.status !== 200) {
+      const errorBody = JSON.parse(response.body)
+      throw new Error(errorBody.error || `Stop meeting failed: ${response.status}`)
+    }
+
+    const result = JSON.parse(response.body)
+    console.log('[NativeBridge] Meeting stopped:', result.meetingId)
+    return result
+  }
+
+  async cancelMeeting(): Promise<void> {
+    if (!this.isReady) {
+      throw new Error('Service not ready')
+    }
+
+    const response = await httpPost(`${this.baseUrl}/meeting/cancel`)
+
+    if (response.status !== 200) {
+      throw new Error(`Cancel meeting failed: ${response.status}`)
+    }
+
+    console.log('[NativeBridge] Meeting cancelled')
+  }
+
+  async getMeetingStatus(): Promise<MeetingStatus> {
+    if (!this.isReady) {
+      return {
+        state: 'idle',
+        currentMeetingId: null,
+        duration: 0,
+        liveTranscript: '',
+        error: 'Service not ready'
+      }
+    }
+
+    try {
+      const response = await httpGet(`${this.baseUrl}/meeting/status`)
+      if (response.status !== 200) {
+        throw new Error(`Get meeting status failed: ${response.status}`)
+      }
+      return JSON.parse(response.body)
+    } catch (error) {
+      return {
+        state: 'error',
+        currentMeetingId: null,
+        duration: 0,
+        liveTranscript: '',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }
+    }
+  }
+
+  async getMeetings(): Promise<MeetingListItem[]> {
+    if (!this.isReady) {
+      return []
+    }
+
+    try {
+      const response = await httpGet(`${this.baseUrl}/meetings`)
+      if (response.status !== 200) {
+        throw new Error(`Get meetings failed: ${response.status}`)
+      }
+      const result = JSON.parse(response.body)
+      return result.meetings || []
+    } catch (error) {
+      console.error('[NativeBridge] Failed to get meetings:', error)
+      return []
+    }
+  }
+
+  async getMeeting(id: string): Promise<MeetingNote | null> {
+    if (!this.isReady) {
+      return null
+    }
+
+    try {
+      const response = await httpGet(`${this.baseUrl}/meeting/${id}`)
+      if (response.status === 404) {
+        return null
+      }
+      if (response.status !== 200) {
+        throw new Error(`Get meeting failed: ${response.status}`)
+      }
+      return JSON.parse(response.body)
+    } catch (error) {
+      console.error('[NativeBridge] Failed to get meeting:', error)
+      return null
+    }
+  }
+
+  async deleteMeeting(id: string): Promise<void> {
+    if (!this.isReady) {
+      throw new Error('Service not ready')
+    }
+
+    const response = await httpRequest(`${this.baseUrl}/meeting/${id}`, 'DELETE')
+
+    if (response.status !== 200) {
+      throw new Error(`Delete meeting failed: ${response.status}`)
+    }
+
+    console.log('[NativeBridge] Meeting deleted:', id)
   }
 
   isServiceReady(): boolean {

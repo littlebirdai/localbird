@@ -1,6 +1,6 @@
 {
   "name": "localbird",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Screen capture with AI analysis and semantic search",
   "type": "module",
   "main": "./out/main/index.mjs",

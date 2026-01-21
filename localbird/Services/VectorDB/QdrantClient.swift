@@ -275,6 +275,90 @@ class QdrantClient {
         )
     }
 
+    /// Insert a meeting into the vector database
+    func upsertMeeting(id: UUID, embedding: [Float], payload: [String: Any]) async throws {
+        let url = URL(string: "\(baseURL)/collections/\(collectionName)/points")!
+
+        let body: [String: Any] = [
+            "points": [
+                [
+                    "id": id.uuidString,
+                    "vector": embedding.map { Double($0) },
+                    "payload": payload
+                ]
+            ]
+        ]
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "PUT"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (_, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              httpResponse.statusCode == 200 else {
+            throw VectorDBError.insertionFailed
+        }
+    }
+
+    /// Search for meetings by embedding
+    func searchMeetings(embedding: [Float], limit: Int = 10) async throws -> [MeetingSearchResult] {
+        let url = URL(string: "\(baseURL)/collections/\(collectionName)/points/search")!
+
+        let body: [String: Any] = [
+            "vector": embedding.map { Double($0) },
+            "limit": limit,
+            "with_payload": true,
+            "filter": [
+                "must": [
+                    [
+                        "key": "type",
+                        "match": [
+                            "value": "meeting"
+                        ]
+                    ]
+                ]
+            ]
+        ]
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              httpResponse.statusCode == 200 else {
+            throw VectorDBError.searchFailed
+        }
+
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let results = json["result"] as? [[String: Any]] else {
+            throw VectorDBError.invalidResponse
+        }
+
+        return results.compactMap { result -> MeetingSearchResult? in
+            guard let idString = result["id"] as? String,
+                  let id = UUID(uuidString: idString),
+                  let score = result["score"] as? Double,
+                  let payload = result["payload"] as? [String: Any] else {
+                return nil
+            }
+
+            return MeetingSearchResult(
+                id: id,
+                score: Float(score),
+                meetingId: payload["meeting_id"] as? String ?? "",
+                title: payload["title"] as? String ?? "",
+                transcript: payload["transcript"] as? String ?? "",
+                startTime: Date(timeIntervalSince1970: payload["start_time"] as? Double ?? 0),
+                duration: payload["duration"] as? Double ?? 0
+            )
+        }
+    }
+
     /// Delete a point by ID
     func deletePoint(id: UUID) async throws {
         let url = URL(string: "\(baseURL)/collections/\(collectionName)/points/delete")!
@@ -343,6 +427,16 @@ struct CollectionInfo {
     let name: String
     let pointsCount: Int
     let vectorsCount: Int
+}
+
+struct MeetingSearchResult: Identifiable {
+    let id: UUID
+    let score: Float
+    let meetingId: String
+    let title: String
+    let transcript: String
+    let startTime: Date
+    let duration: Double
 }
 
 enum VectorDBError: Error, LocalizedError {

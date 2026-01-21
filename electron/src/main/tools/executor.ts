@@ -1,4 +1,5 @@
 import type { QdrantClient, SearchResult } from '../qdrant'
+import { nativeBridge, MeetingListItem } from '../native-bridge'
 
 export interface ToolContext {
   qdrantClient: QdrantClient
@@ -29,6 +30,12 @@ export async function executeTool(
         break
       case 'get_stats':
         result = await getStats(input as GetStatsInput, context)
+        break
+      case 'search_meetings':
+        result = await searchMeetings(input as SearchMeetingsInput)
+        break
+      case 'list_meetings':
+        result = await listMeetings(input as ListMeetingsInput)
         break
       default:
         result = { error: `Unknown tool: ${name}` }
@@ -66,6 +73,15 @@ interface GetRecentInput {
 
 interface GetStatsInput {
   period: 'today' | 'yesterday' | 'week' | 'month'
+}
+
+interface SearchMeetingsInput {
+  query: string
+  limit?: number
+}
+
+interface ListMeetingsInput {
+  limit?: number
 }
 
 // Tool implementations
@@ -362,4 +378,145 @@ function getTimeRange(period: string): { start: Date; end: Date } {
   }
 
   return { start, end }
+}
+
+// Meeting search implementation
+async function searchMeetings(input: SearchMeetingsInput): Promise<unknown> {
+  const { query, limit = 5 } = input
+
+  try {
+    // Get all meetings
+    const meetings = await nativeBridge.getMeetings()
+
+    if (meetings.length === 0) {
+      return {
+        found: false,
+        message: 'No recorded meetings found. Start recording a meeting to search through transcripts.'
+      }
+    }
+
+    // Search through meetings by title and transcript preview
+    const queryLower = query.toLowerCase()
+    const matchingMeetings: Array<MeetingListItem & { matchScore: number }> = []
+
+    for (const meeting of meetings) {
+      // Get full meeting to search transcript
+      const fullMeeting = await nativeBridge.getMeeting(meeting.id)
+      if (!fullMeeting) continue
+
+      let matchScore = 0
+
+      // Check title match
+      if (meeting.title.toLowerCase().includes(queryLower)) {
+        matchScore += 10
+      }
+
+      // Check transcript match
+      const transcript = fullMeeting.transcript.toLowerCase()
+      if (transcript.includes(queryLower)) {
+        // Count occurrences for relevance scoring
+        const occurrences = (transcript.match(new RegExp(queryLower, 'g')) || []).length
+        matchScore += occurrences
+      }
+
+      if (matchScore > 0) {
+        matchingMeetings.push({ ...meeting, matchScore })
+      }
+    }
+
+    // Sort by match score
+    matchingMeetings.sort((a, b) => b.matchScore - a.matchScore)
+
+    // Limit results
+    const results = matchingMeetings.slice(0, limit)
+
+    if (results.length === 0) {
+      return {
+        found: false,
+        message: `No meetings found matching "${query}".`,
+        totalMeetings: meetings.length
+      }
+    }
+
+    return {
+      found: true,
+      count: results.length,
+      query,
+      results: await Promise.all(
+        results.map(async (meeting) => {
+          const fullMeeting = await nativeBridge.getMeeting(meeting.id)
+          const transcript = fullMeeting?.transcript || ''
+
+          // Extract relevant snippet around the query
+          let snippet = ''
+          const transcriptLower = transcript.toLowerCase()
+          const queryIndex = transcriptLower.indexOf(queryLower)
+          if (queryIndex !== -1) {
+            const start = Math.max(0, queryIndex - 50)
+            const end = Math.min(transcript.length, queryIndex + query.length + 100)
+            snippet = (start > 0 ? '...' : '') + transcript.slice(start, end) + (end < transcript.length ? '...' : '')
+          } else {
+            snippet = transcript.slice(0, 150) + (transcript.length > 150 ? '...' : '')
+          }
+
+          return {
+            id: meeting.id,
+            title: meeting.title,
+            date: new Date(meeting.startTime * 1000).toLocaleString(),
+            duration: formatMeetingDuration(meeting.duration),
+            snippet
+          }
+        })
+      )
+    }
+  } catch (error) {
+    return {
+      found: false,
+      error: error instanceof Error ? error.message : 'Failed to search meetings'
+    }
+  }
+}
+
+// List meetings implementation
+async function listMeetings(input: ListMeetingsInput): Promise<unknown> {
+  const { limit = 10 } = input
+
+  try {
+    const meetings = await nativeBridge.getMeetings()
+
+    if (meetings.length === 0) {
+      return {
+        found: false,
+        message: 'No recorded meetings found. Use the Meetings tab to record your first meeting.'
+      }
+    }
+
+    const results = meetings.slice(0, limit)
+
+    return {
+      found: true,
+      count: results.length,
+      totalMeetings: meetings.length,
+      results: results.map((meeting) => ({
+        id: meeting.id,
+        title: meeting.title,
+        date: new Date(meeting.startTime * 1000).toLocaleString(),
+        timeAgo: getTimeAgo(meeting.startTime),
+        duration: formatMeetingDuration(meeting.duration),
+        preview: meeting.transcriptPreview
+      }))
+    }
+  } catch (error) {
+    return {
+      found: false,
+      error: error instanceof Error ? error.message : 'Failed to list meetings'
+    }
+  }
+}
+
+function formatMeetingDuration(seconds: number): string {
+  const mins = Math.floor(seconds / 60)
+  const secs = Math.floor(seconds % 60)
+  if (mins === 0) return `${secs}s`
+  return `${mins}m ${secs}s`
 }

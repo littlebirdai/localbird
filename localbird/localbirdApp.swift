@@ -34,6 +34,7 @@ class ServiceDelegate: NSObject, NSApplicationDelegate {
     var port: UInt16 = 9111
     private var httpServer: HTTPServer?
     private var coordinator: CaptureCoordinator?
+    private var meetingCoordinator: MeetingCoordinator?
     private var isConfigured = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -41,6 +42,12 @@ class ServiceDelegate: NSObject, NSApplicationDelegate {
 
         // Initialize coordinator (but don't start capture until configured)
         coordinator = CaptureCoordinator()
+
+        // Initialize meeting coordinator with shared LLM service
+        if let coordinator = coordinator {
+            meetingCoordinator = MeetingCoordinator(llmService: coordinator.llmService)
+            meetingCoordinator?.configure(qdrantClient: coordinator.qdrantClient)
+        }
 
         // Start HTTP server
         startHTTPServer()
@@ -52,6 +59,7 @@ class ServiceDelegate: NSObject, NSApplicationDelegate {
         NSLog("[Localbird] Service shutting down")
         httpServer?.stop()
         coordinator?.stopCapture()
+        meetingCoordinator?.cancelMeeting()
     }
 
     private func startHTTPServer() {
@@ -86,6 +94,51 @@ class ServiceDelegate: NSObject, NSApplicationDelegate {
                 self?.coordinator?.stopCapture()
                 NSLog("[Localbird] Capture stopped via HTTP")
             }
+        }
+
+        // Meeting callbacks - called from MainActor context in HTTPServer
+        httpServer?.onStartMeeting = { [weak self] title in
+            NSLog("[localbirdApp] onStartMeeting callback with title='%@'", title)
+            guard let mc = self?.meetingCoordinator else {
+                throw MeetingError.notRecording
+            }
+            try await mc.startMeeting(title: title)
+            guard let meeting = mc.currentMeeting else {
+                throw MeetingError.notRecording
+            }
+            NSLog("[localbirdApp] onStartMeeting returning meeting title='%@'", meeting.title)
+            return meeting
+        }
+
+        httpServer?.onStopMeeting = { [weak self] in
+            NSLog("[localbirdApp] onStopMeeting callback entered")
+            guard let mc = self?.meetingCoordinator else {
+                throw MeetingError.notRecording
+            }
+            return try await mc.stopMeeting()
+        }
+
+        httpServer?.onCancelMeeting = { [weak self] in
+            self?.meetingCoordinator?.cancelMeeting()
+        }
+
+        httpServer?.getMeetingStatus = { [weak self] in
+            guard let meetingCoordinator = self?.meetingCoordinator else {
+                return MeetingStatus(state: .idle, currentMeetingId: nil, duration: 0, liveTranscript: "", error: "Not initialized")
+            }
+            return meetingCoordinator.getStatus()
+        }
+
+        httpServer?.getMeetings = { [weak self] in
+            return self?.meetingCoordinator?.recordings ?? []
+        }
+
+        httpServer?.getMeeting = { [weak self] id in
+            return self?.meetingCoordinator?.getMeeting(id: id)
+        }
+
+        httpServer?.deleteMeeting = { [weak self] id in
+            self?.meetingCoordinator?.deleteMeeting(id: id)
         }
 
         do {

@@ -1,15 +1,17 @@
 import { useState, useEffect, useCallback } from 'react'
-import { MessageSquare, Grid3X3, Settings as SettingsIcon } from 'lucide-react'
+import { MessageSquare, Grid3X3, Settings as SettingsIcon, Mic } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Chat } from '@/components/Chat'
 import { Timeline } from '@/components/Timeline'
 import { Settings } from '@/components/Settings'
+import { MeetingNotes } from '@/components/MeetingNotes'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { AssistantRuntimeProvider } from '@assistant-ui/react'
 import { useChatRuntime } from '@assistant-ui/react-ai-sdk'
 import { TextStreamChatTransport } from 'ai'
+import { useChatPersistence } from '@/hooks/useChatPersistence'
 
-type View = 'chat' | 'timeline' | 'settings'
+type View = 'chat' | 'timeline' | 'meetings' | 'settings'
 
 // Create transport once at module level so it persists
 const chatTransport = new TextStreamChatTransport({
@@ -32,11 +34,13 @@ export default function App() {
 // Inner component that has access to the AssistantRuntime context
 function AppContent() {
   const [currentView, setCurrentView] = useState<View>('chat')
-  const [currentChatId, setCurrentChatId] = useState<string | null>(null)
   const [status, setStatus] = useState<{
     isRunning: boolean
     frameCount: number
   }>({ isRunning: false, frameCount: 0 })
+
+  // Use the chat persistence hook for auto-saving and chat management
+  const { currentChatId, loadChat, newChat, deleteChat } = useChatPersistence()
 
   // Focus composer input
   const focusComposer = useCallback(() => {
@@ -75,11 +79,22 @@ function AppContent() {
       else setCurrentView('chat')
     })
 
+    // Listen for new chat from main process (Cmd+N)
+    const unsubNewChat = window.api.onNewChat(() => {
+      newChat()
+      setCurrentView('chat')
+      setTimeout(() => {
+        const input = document.querySelector<HTMLTextAreaElement>('[data-composer-input]')
+        input?.focus()
+      }, 50)
+    })
+
     return () => {
       clearInterval(interval)
       unsubNavigate()
+      unsubNewChat()
     }
-  }, [])
+  }, [newChat])
 
   // Keyboard shortcuts (Cmd+K to focus, Escape to blur)
   useEffect(() => {
@@ -103,30 +118,19 @@ function AppContent() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [focusComposer])
 
-  // TODO: Chat switching not working - AI SDK's TextStreamChatTransport doesn't support loading historical messages
-  // See: https://github.com/assistant-ui/assistant-ui/issues/2365
-  // Options to fix:
-  // 1. Use ExternalStoreRuntime with custom message state management
-  // 2. Wait for AI SDK to add support for message import
-  // 3. Build custom runtime that handles persistence
+  // Chat selection - loads the chat (note: AI SDK may not fully support loading historical messages)
   const handleSelectChat = useCallback((id: string) => {
-    setCurrentChatId(id)
-    // Currently just tracks selection visually - messages don't load
-  }, [])
+    loadChat(id)
+  }, [loadChat])
 
   const handleNewChat = useCallback(() => {
-    setCurrentChatId(null)
+    newChat()
     setCurrentView('chat')
-  }, [])
+  }, [newChat])
 
   const handleDeleteChat = useCallback(async (id: string) => {
-    if (window.api) {
-      await window.api.deleteChat(id)
-      if (id === currentChatId) {
-        setCurrentChatId(null)
-      }
-    }
-  }, [currentChatId])
+    await deleteChat(id)
+  }, [deleteChat])
 
   return (
     <div className="flex h-screen bg-background">
@@ -147,6 +151,12 @@ function AppContent() {
             active={currentView === 'timeline'}
             onClick={() => setCurrentView('timeline')}
             label="Timeline"
+          />
+          <NavButton
+            icon={<Mic className="w-5 h-5" />}
+            active={currentView === 'meetings'}
+            onClick={() => setCurrentView('meetings')}
+            label="Meetings"
           />
           <NavButton
             icon={<SettingsIcon className="w-5 h-5" />}
@@ -178,6 +188,7 @@ function AppContent() {
           />
         )}
         {currentView === 'timeline' && <Timeline />}
+        {currentView === 'meetings' && <MeetingNotes />}
         {currentView === 'settings' && <Settings />}
       </main>
     </div>

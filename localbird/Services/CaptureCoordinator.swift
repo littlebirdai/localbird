@@ -19,8 +19,8 @@ class CaptureCoordinator: ObservableObject {
 
     private let screenCaptureService: ScreenCaptureService
     private let accessibilityService: AccessibilityService
-    private let llmService: LLMService
-    private let qdrantClient: QdrantClient
+    let llmService: LLMService  // Exposed for meeting coordinator
+    let qdrantClient: QdrantClient  // Exposed for meeting coordinator
     private let frontmostAppMonitor: FrontmostAppMonitor
 
     // Expose search service

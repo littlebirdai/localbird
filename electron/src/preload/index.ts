@@ -39,6 +39,43 @@ export interface ChatMetadata {
   updatedAt: number
 }
 
+// Meeting types
+export type MeetingRecordingState = 'idle' | 'recording' | 'processing' | 'error'
+
+export interface MeetingStatus {
+  state: MeetingRecordingState
+  currentMeetingId: string | null
+  duration: number
+  liveTranscript: string
+  error: string | null
+}
+
+export interface TranscriptSegment {
+  startTime: number
+  endTime: number
+  text: string
+}
+
+export interface MeetingNote {
+  id: string
+  title: string
+  startTime: number
+  endTime: number | null
+  duration: number
+  transcript: string
+  segments: TranscriptSegment[]
+  audioPath: string | null
+}
+
+export interface MeetingListItem {
+  id: string
+  title: string
+  startTime: number
+  endTime: number | null
+  duration: number
+  transcriptPreview: string
+}
+
 const api = {
   // Capture control
   getStatus: (): Promise<ServiceStatus> => ipcRenderer.invoke('get-status'),
@@ -73,7 +110,23 @@ const api = {
   listChats: (): Promise<ChatMetadata[]> => ipcRenderer.invoke('chats:list'),
   getChat: (id: string): Promise<Chat | null> => ipcRenderer.invoke('chats:get', id),
   saveChat: (chat: Chat): Promise<{ success: boolean }> => ipcRenderer.invoke('chats:save', chat),
-  deleteChat: (id: string): Promise<{ success: boolean }> => ipcRenderer.invoke('chats:delete', id)
+  deleteChat: (id: string): Promise<{ success: boolean }> => ipcRenderer.invoke('chats:delete', id),
+
+  // Meeting recording
+  startMeeting: (title?: string): Promise<{ success: boolean; meetingId?: string; title?: string; startTime?: number; error?: string }> =>
+    ipcRenderer.invoke('meetings:start', title),
+  stopMeeting: (): Promise<{ success: boolean; meeting?: MeetingNote; error?: string }> =>
+    ipcRenderer.invoke('meetings:stop'),
+  cancelMeeting: (): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('meetings:cancel'),
+  getMeetingStatus: (): Promise<MeetingStatus> =>
+    ipcRenderer.invoke('meetings:status'),
+  listMeetings: (): Promise<MeetingListItem[]> =>
+    ipcRenderer.invoke('meetings:list'),
+  getMeeting: (id: string): Promise<MeetingNote | null> =>
+    ipcRenderer.invoke('meetings:get', id),
+  deleteMeeting: (id: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('meetings:delete', id)
 }
 
 contextBridge.exposeInMainWorld('api', api)

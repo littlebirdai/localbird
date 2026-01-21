@@ -98,5 +98,39 @@ export const toolDefinitions: Anthropic.Tool[] = [
       },
       required: ['period']
     }
+  },
+  {
+    name: 'search_meetings',
+    description:
+      'Search through recorded meeting transcripts. Use when user asks about meetings, calls, discussions, or wants to find what was said in a meeting. Searches meeting titles and transcript content.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Search query to find in meeting transcripts (searches titles and content)'
+        },
+        limit: {
+          type: 'number',
+          description: 'Maximum number of meetings to return (default 5)'
+        }
+      },
+      required: ['query']
+    }
+  },
+  {
+    name: 'list_meetings',
+    description:
+      'List all recorded meetings. Use when user asks to see their meetings, recent calls, or meeting history.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        limit: {
+          type: 'number',
+          description: 'Maximum number of meetings to return (default 10)'
+        }
+      },
+      required: []
+    }
   }
 ]

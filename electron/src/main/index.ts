@@ -481,6 +481,55 @@ function setupIPC(): void {
     store.set('chats', chats)
     return { success: true }
   })
+
+  // Meeting IPC handlers
+  ipcMain.handle('meetings:start', async (_event, title?: string) => {
+    try {
+      const result = await nativeBridge.startMeeting(title)
+      return { success: true, ...result }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  })
+
+  ipcMain.handle('meetings:stop', async () => {
+    try {
+      const result = await nativeBridge.stopMeeting()
+      return { success: true, meeting: result }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  })
+
+  ipcMain.handle('meetings:cancel', async () => {
+    try {
+      await nativeBridge.cancelMeeting()
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  })
+
+  ipcMain.handle('meetings:status', async () => {
+    return await nativeBridge.getMeetingStatus()
+  })
+
+  ipcMain.handle('meetings:list', async () => {
+    return await nativeBridge.getMeetings()
+  })
+
+  ipcMain.handle('meetings:get', async (_event, id: string) => {
+    return await nativeBridge.getMeeting(id)
+  })
+
+  ipcMain.handle('meetings:delete', async (_event, id: string) => {
+    try {
+      await nativeBridge.deleteMeeting(id)
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  })
 }
 
 function createApplicationMenu(): void {

@@ -52,6 +52,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CD2579842EDCFC5E00558DAA /* WhisperKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -70,6 +71,10 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXBuildFile section */
+		CD2579842EDCFC5E00558DAA /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = CD2579832EDCFC5E00558DAA /* WhisperKit */; };
+/* End PBXBuildFile section */
 
 /* Begin PBXGroup section */
 		CD25794F2EDCFC5E00558DAA = {
@@ -112,6 +117,7 @@
 			);
 			name = localbird;
 			packageProductDependencies = (
+				CD2579832EDCFC5E00558DAA /* WhisperKit */,
 			);
 			productName = localbird;
 			productReference = CD2579582EDCFC5E00558DAA /* localbird.app */;
@@ -195,6 +201,9 @@
 			);
 			mainGroup = CD25794F2EDCFC5E00558DAA;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				CD2579822EDCFC5E00558DAA /* XCRemoteSwiftPackageReference "WhisperKit" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = CD2579592EDCFC5E00558DAA /* Products */;
 			projectDirPath = "";
@@ -577,6 +586,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		CD2579822EDCFC5E00558DAA /* XCRemoteSwiftPackageReference "WhisperKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/argmaxinc/WhisperKit";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.12.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		CD2579832EDCFC5E00558DAA /* WhisperKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = CD2579822EDCFC5E00558DAA /* XCRemoteSwiftPackageReference "WhisperKit" */;
+			productName = WhisperKit;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = CD2579502EDCFC5E00558DAA /* Project object */;
 }
